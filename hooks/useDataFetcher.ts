@@ -1,6 +1,8 @@
 import { tableFromIPC } from 'apache-arrow';
 import { useEffect, useRef } from 'react';
-import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useDataStore } from '../store/useDataStore';
+import { useUIStore } from '../store/useUIStore';
 import { QueryResult } from '../types';
 
 const DATA_PATH = 'storage_v1_9hf29sk';
@@ -123,7 +125,10 @@ const parseArrowPayload = (payload: WorkerArrowResult): QueryResult => {
 };
 
 export const useDataFetcher = () => {
-  const { userRole, setIsLoading, filters, setQueryResult } = useStore();
+  const userRole = useAuthStore((state) => state.userRole);
+  const filters = useDataStore((state) => state.filters);
+  const setQueryResult = useDataStore((state) => state.setQueryResult);
+  const setIsLoading = useUIStore((state) => state.setIsLoading);
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
 
