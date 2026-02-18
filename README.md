@@ -18,3 +18,13 @@ View your app in AI Studio: https://ai.studio/apps/drive/1dTi_2NgbYjC0pvyhIrGJKW
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+
+## Auth API environment variables
+
+Set these server-side variables in your deployment platform (e.g. Vercel):
+
+- `ADMIN_PASSWORD`
+- `GUEST_PASSWORD`
+
+Do **not** prefix them with `VITE_`, otherwise they may be exposed to the client bundle.

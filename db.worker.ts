@@ -1,4 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import { z } from 'zod';
 import { FilterState, KpiData, MapDataItem, MatrixDataItem, ReportDataItem, SmartOptions, TrendDataItem } from './types';
 
 let db: duckdb.AsyncDuckDB;
@@ -29,6 +30,77 @@ async function initDB() {
 }
 
 const initPromise = initDB();
+
+const filterSchema = z.object({
+  city: z.array(z.string().regex(/^[\p{L}\p{N} .,:;()\-_/+]+$/u)).max(200).optional(),
+  year: z.array(z.string().regex(/^\d{4}$/)).max(50).optional(),
+  month: z.array(z.string().regex(/^[\p{L}\p{N} .,:;()\-_/+]+$/u)).max(50).optional(),
+  format: z.array(z.string().regex(/^[A-Z0-9]{1,12}$/)).max(50).optional(),
+  vendor: z.array(z.string().regex(/^[\p{L}\p{N} .,:;()\-_/+]+$/u)).max(200).optional(),
+});
+
+const buildInClause = (column: string, values: string[]): string | null => {
+  if (!values.length) return null;
+  const placeholders = values.map(() => '?').join(', ');
+  return `${column} IN (${placeholders})`;
+};
+
+const createWhere = (filters: Required<FilterState>, excludeKey: keyof FilterState | null = null) => {
+  const clauses: string[] = ['1=1'];
+  const params: string[] = [];
+
+  if (excludeKey !== 'city' && filters.city.length) {
+    const clause = buildInClause('city', filters.city);
+    if (clause) {
+      clauses.push(clause);
+      params.push(...filters.city);
+    }
+  }
+
+  if (excludeKey !== 'year' && filters.year.length) {
+    const clause = buildInClause('CAST(year AS VARCHAR)', filters.year);
+    if (clause) {
+      clauses.push(clause);
+      params.push(...filters.year);
+    }
+  }
+
+  if (excludeKey !== 'month' && filters.month.length) {
+    const clause = buildInClause('month', filters.month);
+    if (clause) {
+      clauses.push(clause);
+      params.push(...filters.month);
+    }
+  }
+
+  if (excludeKey !== 'format' && filters.format.length) {
+    const clause = buildInClause('format', filters.format);
+    if (clause) {
+      clauses.push(clause);
+      params.push(...filters.format);
+    }
+  }
+
+  if (excludeKey !== 'vendor' && filters.vendor.length) {
+    const clause = buildInClause('vendor', filters.vendor);
+    if (clause) {
+      clauses.push(clause);
+      params.push(...filters.vendor);
+    }
+  }
+
+  return { where: clauses.join(' AND '), params };
+};
+
+const queryWithFilters = async <T>(sql: string, params: string[] = []): Promise<T[]> => {
+  const statement = await conn.prepare(sql);
+  try {
+    const result = await statement.query(...params);
+    return result.toArray().map((r) => r.toJSON()) as T[];
+  } finally {
+    await statement.close();
+  }
+};
 
 type WorkerMessage =
   | { type: 'LOAD_DATA'; payload: { files: string[]; basePath: string } }
@@ -83,61 +155,42 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       const { filters, requestId } = payload;
       latestRequestId = Math.max(latestRequestId, requestId);
 
-      const escapeSqlString = (value: string) => value.replace(/'/g, "''");
+      const parsedFilters = filterSchema.safeParse(filters);
+      if (!parsedFilters.success) {
+        console.error('DuckDB Query Validation Error:', parsedFilters.error.flatten());
+        return;
+      }
 
-      const toSqlInList = (values: unknown[]) => values
-        .filter((value): value is string => typeof value === 'string')
-        .map((value) => `'${escapeSqlString(value)}'`)
-        .join(',');
-
-      const getWhere = (excludeKey: keyof FilterState | null = null) => {
-        const clauses = ['1=1'];
-
-        if (excludeKey !== 'city' && filters.city?.length) {
-          const cityList = toSqlInList(filters.city);
-          if (cityList) clauses.push(`city IN (${cityList})`);
-        }
-
-        if (excludeKey !== 'year' && filters.year?.length) {
-          const yearList = toSqlInList(filters.year);
-          if (yearList) clauses.push(`CAST(year AS VARCHAR) IN (${yearList})`);
-        }
-
-        if (excludeKey !== 'month' && filters.month?.length) {
-          const monthList = toSqlInList(filters.month);
-          if (monthList) clauses.push(`month IN (${monthList})`);
-        }
-
-        if (excludeKey !== 'format' && filters.format?.length) {
-          const formatList = toSqlInList(filters.format);
-          if (formatList) clauses.push(`format IN (${formatList})`);
-        }
-
-        if (excludeKey !== 'vendor' && filters.vendor?.length) {
-          const vendorList = toSqlInList(filters.vendor);
-          if (vendorList) clauses.push(`vendor IN (${vendorList})`);
-        }
-
-        return clauses.join(' AND ');
+      const safeFilters: Required<FilterState> = {
+        city: parsedFilters.data.city ?? [],
+        year: parsedFilters.data.year ?? [],
+        month: parsedFilters.data.month ?? [],
+        format: parsedFilters.data.format ?? [],
+        vendor: parsedFilters.data.vendor ?? [],
       };
 
-      const mainWhere = getWhere(null);
+      const mainFilter = createWhere(safeFilters);
+      const cityOptsFilter = createWhere(safeFilters, 'city');
+      const yearOptsFilter = createWhere(safeFilters, 'year');
+      const monthOptsFilter = createWhere(safeFilters, 'month');
+      const formatOptsFilter = createWhere(safeFilters, 'format');
+      const vendorOptsFilter = createWhere(safeFilters, 'vendor');
 
-      const kpiRes = await conn.query(`
+      const kpiRows = await queryWithFilters<KpiData>(`
         SELECT
           AVG(grp) as avgGrp,
           (SELECT AVG(monthly_total) FROM (
              SELECT SUM(ots) as monthly_total
              FROM ooh_data
-             WHERE ${mainWhere}
+             WHERE ${mainFilter.where}
              GROUP BY year, month
           )) as totalOts,
           COUNT(DISTINCT address) as uniqueSurfaces
         FROM ooh_data
-        WHERE ${mainWhere}
-      `);
+        WHERE ${mainFilter.where}
+      `, [...mainFilter.params, ...mainFilter.params]);
 
-      const mapRes = await conn.query(`
+      const mapRows = await queryWithFilters<MapDataItem>(`
         SELECT
           address, city, vendor, format,
           AVG(grp) as avgGrp,
@@ -145,37 +198,43 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
           MAX(lat) as lat,
           MAX(lng) as lng
         FROM ooh_data
-        WHERE ${mainWhere}
+        WHERE ${mainFilter.where}
         GROUP BY address, city, vendor, format
-      `);
+      `, mainFilter.params);
 
-      const trendRes = await conn.query(`
+      const trendRows = await queryWithFilters<TrendDataItem>(`
         SELECT month, year, AVG(grp) as avgGrp
-        FROM ooh_data WHERE ${mainWhere}
+        FROM ooh_data WHERE ${mainFilter.where}
         GROUP BY year, month ORDER BY year, month
-      `);
+      `, mainFilter.params);
 
-      const matrixRes = await conn.query(`
+      const matrixRows = await queryWithFilters<MatrixDataItem>(`
         SELECT city, format, AVG(grp) as avgGrp
-        FROM ooh_data WHERE ${mainWhere}
+        FROM ooh_data WHERE ${mainFilter.where}
         GROUP BY city, format
-      `);
+      `, mainFilter.params);
 
-      const reportRes = await conn.query(`
+      const reportRows = await queryWithFilters<ReportDataItem>(`
         SELECT city, format, year, month, AVG(grp) as avgGrp, COUNT(*) as sideCount
-        FROM ooh_data WHERE ${mainWhere}
+        FROM ooh_data WHERE ${mainFilter.where}
         GROUP BY city, format, year, month
         ORDER BY city, year, month
-      `);
+      `, mainFilter.params);
 
-      const optsRes = await conn.query(`
+      const optsRows = await queryWithFilters<SmartOptions>(`
         SELECT
-          (SELECT list_sort(list(DISTINCT city)) FROM ooh_data WHERE ${getWhere('city')}) as cities,
-          (SELECT list_sort(list(DISTINCT CAST(year AS VARCHAR))) FROM ooh_data WHERE ${getWhere('year')}) as years,
-          (SELECT list_sort(list(DISTINCT month)) FROM ooh_data WHERE ${getWhere('month')}) as months,
-          (SELECT list_sort(list(DISTINCT format)) FROM ooh_data WHERE ${getWhere('format')}) as formats,
-          (SELECT list_sort(list(DISTINCT vendor)) FROM ooh_data WHERE ${getWhere('vendor')}) as vendors
-      `);
+          (SELECT list_sort(list(DISTINCT city)) FROM ooh_data WHERE ${cityOptsFilter.where}) as cities,
+          (SELECT list_sort(list(DISTINCT CAST(year AS VARCHAR))) FROM ooh_data WHERE ${yearOptsFilter.where}) as years,
+          (SELECT list_sort(list(DISTINCT month)) FROM ooh_data WHERE ${monthOptsFilter.where}) as months,
+          (SELECT list_sort(list(DISTINCT format)) FROM ooh_data WHERE ${formatOptsFilter.where}) as formats,
+          (SELECT list_sort(list(DISTINCT vendor)) FROM ooh_data WHERE ${vendorOptsFilter.where}) as vendors
+      `, [
+        ...cityOptsFilter.params,
+        ...yearOptsFilter.params,
+        ...monthOptsFilter.params,
+        ...formatOptsFilter.params,
+        ...vendorOptsFilter.params,
+      ]);
 
       if (requestId < latestRequestId) {
         return;
@@ -184,12 +243,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       self.postMessage(serialize({
         type: 'QUERY_RESULT',
         requestId,
-        kpis: (kpiRes.toArray().map((r) => r.toJSON())[0] ?? { avgGrp: 0, totalOts: 0, uniqueSurfaces: 0 }) as KpiData,
-        mapData: mapRes.toArray().map((r) => r.toJSON()) as MapDataItem[],
-        trendData: trendRes.toArray().map((r) => r.toJSON()) as TrendDataItem[],
-        matrixData: matrixRes.toArray().map((r) => r.toJSON()) as MatrixDataItem[],
-        reportData: reportRes.toArray().map((r) => r.toJSON()) as ReportDataItem[],
-        options: (optsRes.toArray().map((r) => r.toJSON())[0] ?? { cities: [], years: [], months: [], formats: [], vendors: [] }) as SmartOptions,
+        kpis: (kpiRows[0] ?? { avgGrp: 0, totalOts: 0, uniqueSurfaces: 0 }) as KpiData,
+        mapData: mapRows,
+        trendData: trendRows,
+        matrixData: matrixRows,
+        reportData: reportRows,
+        options: (optsRows[0] ?? { cities: [], years: [], months: [], formats: [], vendors: [] }) as SmartOptions,
       }));
     } catch (err) {
       console.error('DuckDB Query Error:', err);

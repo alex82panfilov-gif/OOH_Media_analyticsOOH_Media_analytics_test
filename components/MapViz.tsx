@@ -23,6 +23,54 @@ const FORMAT_COLORS: Record<string, string> = {
   SS: '#84cc16', DSS: '#e11d48', MF: '#9333ea',
 };
 
+
+
+const createClusterIcon = (pointCount: number) => {
+  const root = document.createElement('div');
+  root.className = 'map-cluster-icon';
+  root.textContent = String(pointCount);
+  root.style.background = '#0f172a';
+  root.style.color = 'white';
+  root.style.border = '2px solid white';
+  root.style.width = '35px';
+  root.style.height = '35px';
+  root.style.borderRadius = '9999px';
+  root.style.display = 'flex';
+  root.style.alignItems = 'center';
+  root.style.justifyContent = 'center';
+  root.style.fontWeight = '700';
+  root.style.fontSize = '10px';
+
+  return L.divIcon({
+    html: root.outerHTML,
+    className: '',
+    iconSize: [35, 35],
+  });
+};
+
+const createPointIcon = (color: string) => {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('width', '30');
+  svg.setAttribute('height', '30');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const path = document.createElementNS(svgNS, 'path');
+  path.setAttribute('fill', color);
+  path.setAttribute('stroke', 'white');
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('d', 'M12 0c-4.198 0-8 3.403-8 7.602 0 4.198 3.469 9.21 8 16.398 4.531-7.188 8-12.2 8-16.398 0-4.199-3.801-7.602-8-7.602z');
+  svg.appendChild(path);
+
+  return L.divIcon({
+    html: svg.outerHTML,
+    className: '',
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+  });
+};
+
 const MapController = ({ center }: { center: [number, number] }) => {
   const map = useMap();
   useEffect(() => {
@@ -67,11 +115,7 @@ const Clusters = ({
             <Marker
               key={`cluster-${cluster_id}`}
               position={[lat, lng]}
-              icon={L.divIcon({
-                html: `<div style="background: #0f172a; color: white; border: 2px solid white; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px;">${point_count}</div>`,
-                className: '',
-                iconSize: [35, 35],
-              })}
+              icon={createClusterIcon(point_count)}
               eventHandlers={{
                 click: () => {
                   const expansionZoom = Math.min(index.getClusterExpansionZoom(cluster_id), 18);
@@ -86,12 +130,7 @@ const Clusters = ({
           <Marker
             key={`point-${cluster.properties.address}`}
             position={[lat, lng]}
-            icon={L.divIcon({
-              html: `<svg width="30" height="30" viewBox="0 0 24 24"><path fill="${FORMAT_COLORS[cluster.properties.format] || '#64748b'}" stroke="white" stroke-width="2" d="M12 0c-4.198 0-8 3.403-8 7.602 0 4.198 3.469 9.21 8 16.398 4.531-7.188 8-12.2 8-16.398 0-4.199-3.801-7.602-8-7.602z"/></svg>`,
-              className: '',
-              iconSize: [30, 30],
-              iconAnchor: [15, 30],
-            })}
+            icon={createPointIcon(FORMAT_COLORS[cluster.properties.format] || '#64748b')}
             eventHandlers={{ click: () => onSelect(cluster.properties.address) }}
           />
         );
