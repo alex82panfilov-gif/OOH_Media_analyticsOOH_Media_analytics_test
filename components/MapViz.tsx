@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMap, AttributionControl } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, AttributionControl } from 'react-leaflet';
 import L from 'leaflet';
 import Supercluster from 'supercluster';
 import { formatNumberRussian } from '../utils/data';
@@ -22,8 +22,6 @@ const FORMAT_COLORS: Record<string, string> = {
   DCB: '#f59e0b', CF: '#16a34a', DCF: '#10b981',
   SS: '#84cc16', DSS: '#e11d48', MF: '#9333ea',
 };
-
-
 
 const createClusterIcon = (pointCount: number) => {
   const root = document.createElement('div');
@@ -79,7 +77,7 @@ const MapController = ({ center }: { center: [number, number] }) => {
   return null;
 };
 
-const Clusters = ({
+const ClustersLayer = ({
   index,
   onSelect,
 }: {
@@ -87,56 +85,55 @@ const Clusters = ({
   onSelect: (address: string) => void;
 }) => {
   const map = useMap();
-  const [clusters, setClusters] = useState<ClusterOrPoint[]>([]);
-
-  const update = () => {
-    const bounds = map.getBounds();
-    const bbox: [number, number, number, number] = [
-      bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth(),
-    ];
-    setClusters(index.getClusters(bbox, map.getZoom()));
-  };
-
   useEffect(() => {
-    update();
-    map.on('moveend zoomend', update);
-    return () => { map.off('moveend zoomend', update); };
-  }, [map, index]);
+    const layerGroup = L.layerGroup();
+    map.addLayer(layerGroup);
 
-  return (
-    <>
-      {clusters.map((cluster) => {
+    const update = () => {
+      const bounds = map.getBounds();
+      const bbox: [number, number, number, number] = [
+        bounds.getWest(),
+        bounds.getSouth(),
+        bounds.getEast(),
+        bounds.getNorth(),
+      ];
+      const clusters = index.getClusters(bbox, map.getZoom()) as ClusterOrPoint[];
+      layerGroup.clearLayers();
+
+      clusters.forEach((cluster) => {
         const [lng, lat] = cluster.geometry.coordinates;
 
         if ('cluster' in cluster.properties && cluster.properties.cluster) {
           const { point_count, cluster_id } = cluster.properties;
-
-          return (
-            <Marker
-              key={`cluster-${cluster_id}`}
-              position={[lat, lng]}
-              icon={createClusterIcon(point_count)}
-              eventHandlers={{
-                click: () => {
-                  const expansionZoom = Math.min(index.getClusterExpansionZoom(cluster_id), 18);
-                  map.setView([lat, lng], expansionZoom);
-                },
-              }}
-            />
-          );
+          const marker = L.marker([lat, lng], { icon: createClusterIcon(point_count) });
+          marker.on('click', () => {
+            const expansionZoom = Math.min(index.getClusterExpansionZoom(cluster_id), 18);
+            map.setView([lat, lng], expansionZoom);
+          });
+          layerGroup.addLayer(marker);
+          return;
         }
 
-        return (
-          <Marker
-            key={`point-${cluster.properties.address}`}
-            position={[lat, lng]}
-            icon={createPointIcon(FORMAT_COLORS[cluster.properties.format] || '#64748b')}
-            eventHandlers={{ click: () => onSelect(cluster.properties.address) }}
-          />
-        );
-      })}
-    </>
-  );
+        const point = cluster as ClusterPoint;
+        const marker = L.marker([lat, lng], {
+          icon: createPointIcon(FORMAT_COLORS[point.properties.format] || '#64748b'),
+        });
+        marker.on('click', () => onSelect(point.properties.address));
+        layerGroup.addLayer(marker);
+      });
+    };
+
+    update();
+    map.on('moveend zoomend', update);
+
+    return () => {
+      map.off('moveend zoomend', update);
+      layerGroup.clearLayers();
+      map.removeLayer(layerGroup);
+    };
+  }, [map, index, onSelect]);
+
+  return null;
 };
 
 export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
@@ -175,7 +172,7 @@ export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
           <MapController center={center} />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <AttributionControl position="bottomright" prefix="OOH Analytics" />
-          <Clusters index={index} onSelect={setSelectedAddress} />
+          <ClustersLayer index={index} onSelect={setSelectedAddress} />
         </MapContainer>
       </div>
 
