@@ -1,5 +1,5 @@
 // hooks/useAuth.ts
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useStore } from '../store/useStore';
 import { TabView } from '../types';
 
@@ -11,7 +11,7 @@ export const useAuth = () => {
   const [loginError, setLoginError] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
     setLoginError(false);
