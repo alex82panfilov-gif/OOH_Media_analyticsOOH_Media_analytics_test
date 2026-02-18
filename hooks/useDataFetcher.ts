@@ -43,36 +43,61 @@ const parseArrowRows = <T,>(buffer: ArrayBuffer): T[] => {
   return table.toArray().map((row) => sanitizeValue(row.toJSON()) as T);
 };
 
-const normalizeStringArray = (value: unknown): string[] => {
-  const toStringValues = (items: unknown[]): string[] => {
-    return items
-      .filter((item): item is string | number | bigint | boolean => {
-        const itemType = typeof item;
-        return item !== null && item !== undefined && ['string', 'number', 'bigint', 'boolean'].includes(itemType);
-      })
-      .map((item) => String(item));
-  };
+const normalizePrimitiveArray = (items: unknown[]): string[] => {
+  return items
+    .filter((item): item is string | number | bigint | boolean => {
+      const itemType = typeof item;
+      return item !== null && item !== undefined && ['string', 'number', 'bigint', 'boolean'].includes(itemType);
+    })
+    .map((item) => String(item).trim())
+    .filter((item) => item.length > 0);
+};
 
+const normalizeStringArray = (value: unknown): string[] => {
   if (Array.isArray(value)) {
-    return toStringValues(value);
+    return normalizePrimitiveArray(value);
   }
 
-  if (value && typeof value === 'object') {
-    return toStringValues(Object.values(value as Record<string, unknown>));
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  const objectValue = value as Record<string, unknown>;
+
+  if (Array.isArray(objectValue.values)) {
+    return normalizePrimitiveArray(objectValue.values);
+  }
+
+  if (Array.isArray(objectValue.data)) {
+    return normalizePrimitiveArray(objectValue.data);
+  }
+
+  const numericKeys = Object.keys(objectValue).filter((key) => /^\d+$/.test(key));
+  if (numericKeys.length > 0 && numericKeys.length === Object.keys(objectValue).length) {
+    const orderedValues = numericKeys
+      .map((key) => Number(key))
+      .sort((a, b) => a - b)
+      .map((key) => objectValue[String(key)]);
+    return normalizePrimitiveArray(orderedValues);
   }
 
   return [];
+};
+
+const dedupeAndSort = (values: string[]): string[] => {
+  const unique = Array.from(new Set(values));
+  return unique.sort((a, b) => a.localeCompare(b, 'ru', { numeric: true, sensitivity: 'base' }));
 };
 
 const normalizeOptions = (value: unknown): QueryResult['options'] => {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 
   return {
-    cities: normalizeStringArray(source.cities),
-    years: normalizeStringArray(source.years),
-    months: normalizeStringArray(source.months),
-    formats: normalizeStringArray(source.formats),
-    vendors: normalizeStringArray(source.vendors),
+    cities: dedupeAndSort(normalizeStringArray(source.cities)),
+    years: dedupeAndSort(normalizeStringArray(source.years)),
+    months: dedupeAndSort(normalizeStringArray(source.months)),
+    formats: dedupeAndSort(normalizeStringArray(source.formats)),
+    vendors: dedupeAndSort(normalizeStringArray(source.vendors)),
   };
 };
 
