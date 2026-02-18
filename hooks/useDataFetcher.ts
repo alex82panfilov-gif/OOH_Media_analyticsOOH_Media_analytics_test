@@ -43,6 +43,38 @@ const parseArrowRows = <T,>(buffer: ArrayBuffer): T[] => {
   return table.toArray().map((row) => sanitizeValue(row.toJSON()) as T);
 };
 
+const normalizeStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => item !== null && item !== undefined)
+      .map((item) => String(item));
+  }
+
+  if (value && typeof value === 'object') {
+    const indexedEntries = Object.entries(value as Record<string, unknown>)
+      .filter(([key, item]) => /^\d+$/.test(key) && item !== null && item !== undefined)
+      .sort(([left], [right]) => Number(left) - Number(right));
+
+    if (indexedEntries.length > 0) {
+      return indexedEntries.map(([, item]) => String(item));
+    }
+  }
+
+  return [];
+};
+
+const normalizeOptions = (value: unknown): QueryResult['options'] => {
+  const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+
+  return {
+    cities: normalizeStringArray(source.cities),
+    years: normalizeStringArray(source.years),
+    months: normalizeStringArray(source.months),
+    formats: normalizeStringArray(source.formats),
+    vendors: normalizeStringArray(source.vendors),
+  };
+};
+
 const parseArrowPayload = (payload: WorkerArrowResult): QueryResult => {
   const kpiRows = parseArrowRows<QueryResult['kpis']>(payload.kpis);
   const optionsRows = parseArrowRows<QueryResult['options']>(payload.options);
@@ -55,7 +87,7 @@ const parseArrowPayload = (payload: WorkerArrowResult): QueryResult => {
     trendData: parseArrowRows<QueryResult['trendData'][number]>(payload.trendData),
     matrixData: parseArrowRows<QueryResult['matrixData'][number]>(payload.matrixData),
     reportData: parseArrowRows<QueryResult['reportData'][number]>(payload.reportData),
-    options: (optionsRows[0] ?? { cities: [], years: [], months: [], formats: [], vendors: [] }) as QueryResult['options'],
+    options: normalizeOptions(optionsRows[0]),
   };
 };
 
