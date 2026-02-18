@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OOH Media Analytics</title>
+    <!-- Tailwind CSS для стилей -->
+    <script src="https://cdn.tailwindcss.com"></script>
+<style>
+.leaflet-control-attribution span, 
+.leaflet-control-attribution a {
+    background-image: none !important; /* Убирает фоновые картинки-флаги */
+}
+
+.leaflet-attribution-flag {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+</style>
+  </head>
+  <body class="bg-gray-100">
+    <!-- Сюда React добавит ваше приложение -->
+    <div id="root"></div>
+    
+    <!-- Ссылка на входной файл React -->
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
