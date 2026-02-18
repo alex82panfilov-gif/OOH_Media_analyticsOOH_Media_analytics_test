@@ -1,8 +1,9 @@
 import React, { useRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { formatNumberRussian } from '../utils/data';
+import { ReportDataPoint } from '../types';
 
-export const PivotReports: React.FC<{ data: any[] }> = ({ data }) => {
+export const PivotReports: React.FC<{ data: ReportDataPoint[] }> = ({ data }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Группируем данные для матрицы (Город / Формат)

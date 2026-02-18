@@ -1,11 +1,12 @@
 import React from 'react';
+import { MapDataPoint, MatrixDataPoint, TrendDataPoint } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Treemap, LabelList
 } from 'recharts';
 
 // --- TREND CHART ---
-export const TrendChart: React.FC<{ data: any[] }> = ({ data }) => {
+export const TrendChart: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const monthOrder = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
     return [...data].sort((a, b) => {
@@ -55,7 +56,7 @@ export const TrendChart: React.FC<{ data: any[] }> = ({ data }) => {
 };
 
 // --- BAR CHART ---
-export const FormatBarChart: React.FC<{ data: any[] }> = ({ data }) => {
+export const FormatBarChart: React.FC<{ data: MatrixDataPoint[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const map = new Map<string, { sum: number, count: number }>();
     data.forEach(d => {
@@ -136,7 +137,7 @@ const CustomTreemapContent = (props: any) => {
   );
 };
 
-export const VendorTreemap: React.FC<{ data: any[] }> = ({ data }) => {
+export const VendorTreemap: React.FC<{ data: MapDataPoint[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const map = new Map<string, number>();
     data.forEach(d => {

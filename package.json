@@ -7,7 +7,9 @@
     "generate-list": "node scripts/generate-data-list.js",
     "dev": "npm run generate-list && vite",
     "build": "npm run generate-list && vite build && node copy-data.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .js,.cjs --max-warnings=0"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",

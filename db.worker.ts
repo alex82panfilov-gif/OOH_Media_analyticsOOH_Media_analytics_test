@@ -3,6 +3,7 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 let db: duckdb.AsyncDuckDB;
 let conn: duckdb.AsyncDuckDBConnection;
 let isInitialized = false;
+let latestQueryId = 0;
 
 const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
@@ -12,6 +13,9 @@ const serialize = (obj: any) => {
     typeof value === 'bigint' ? value.toString() : value
   ));
 };
+
+const escapeSqlString = (value: unknown): string => String(value).replace(/'/g, "''");
+const createSqlInList = (values: unknown[]): string => values.map((v) => `'${escapeSqlString(v)}'`).join(',');
 
 async function initDB() {
   const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
@@ -49,7 +53,7 @@ self.onmessage = async (e) => {
         );
       }
       
-      const fileListSql = files.map((f: string) => `'${f}'`).join(', ');
+      const fileListSql = files.map((f: string) => `'${escapeSqlString(f)}'`).join(', ');
 
       // ОЧИСТКА ДАННЫХ И СОЗДАНИЕ VIEW
       await conn.query(`
@@ -71,7 +75,7 @@ self.onmessage = async (e) => {
       isInitialized = true;
       self.postMessage({ type: 'READY' });
     } catch (err) {
-      console.error("DuckDB Load Error:", err);
+      console.error('DuckDB Load Error:', err);
     }
   }
 
@@ -79,21 +83,29 @@ self.onmessage = async (e) => {
     if (!isInitialized) return;
 
     try {
-      const { filters } = payload;
-      
+      const { filters, requestId = 0 } = payload;
+      latestQueryId = requestId;
+
       // Генератор условий WHERE
       const getWhere = (excludeKey: string | null = null) => {
-        let clauses = ['1=1'];
-        if (excludeKey !== 'city' && filters.city?.length) 
-          clauses.push(`city IN (${filters.city.map((c: any) => `'${c}'`).join(',')})`);
-        if (excludeKey !== 'year' && filters.year?.length) 
-          clauses.push(`CAST(year AS VARCHAR) IN (${filters.year.map((y: any) => `'${y}'`).join(',')})`);
-        if (excludeKey !== 'month' && filters.month?.length) 
-          clauses.push(`month IN (${filters.month.map((m: any) => `'${m}'`).join(',')})`);
-        if (excludeKey !== 'format' && filters.format?.length) 
-          clauses.push(`format IN (${filters.format.map((f: any) => `'${f}'`).join(',')})`);
-        if (excludeKey !== 'vendor' && filters.vendor?.length) 
-          clauses.push(`vendor IN (${filters.vendor.map((v: any) => `'${v}'`).join(',')})`);
+        const clauses = ['1=1'];
+
+        if (excludeKey !== 'city' && filters.city?.length) {
+          clauses.push(`city IN (${createSqlInList(filters.city)})`);
+        }
+        if (excludeKey !== 'year' && filters.year?.length) {
+          clauses.push(`CAST(year AS VARCHAR) IN (${createSqlInList(filters.year)})`);
+        }
+        if (excludeKey !== 'month' && filters.month?.length) {
+          clauses.push(`month IN (${createSqlInList(filters.month)})`);
+        }
+        if (excludeKey !== 'format' && filters.format?.length) {
+          clauses.push(`format IN (${createSqlInList(filters.format)})`);
+        }
+        if (excludeKey !== 'vendor' && filters.vendor?.length) {
+          clauses.push(`vendor IN (${createSqlInList(filters.vendor)})`);
+        }
+
         return clauses.join(' AND ');
       };
 
@@ -162,8 +174,11 @@ self.onmessage = async (e) => {
           (SELECT list_sort(list(DISTINCT vendor)) FROM ooh_data WHERE ${getWhere('vendor')}) as vendors
       `);
 
+      if (requestId !== latestQueryId) return;
+
       self.postMessage(serialize({
         type: 'QUERY_RESULT',
+        requestId,
         kpis: kpiRes.toArray().map(r => r.toJSON())[0],
         mapData: mapRes.toArray().map(r => r.toJSON()),
         trendData: trendRes.toArray().map(r => r.toJSON()),
@@ -173,7 +188,7 @@ self.onmessage = async (e) => {
       }));
 
     } catch (err) {
-      console.error("DuckDB Query Error:", err);
+      console.error('DuckDB Query Error:', err);
     }
   }
 };

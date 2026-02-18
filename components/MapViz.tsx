@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, useMap, AttributionControl } from 'rea
 import L from 'leaflet';
 import Supercluster from 'supercluster';
 import { formatNumberRussian } from '../utils/data';
+import { MapDataPoint } from '../types';
 import { Navigation, MousePointer2, Info } from 'lucide-react';
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -81,7 +82,7 @@ const Clusters = ({ index, onSelect }: any) => {
   );
 };
 
-export const MapViz: React.FC<{ data: any[] }> = ({ data }) => {
+export const MapViz: React.FC<{ data: MapDataPoint[] }> = ({ data }) => {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
 
   // Карта адресов для быстрого поиска

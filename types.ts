@@ -13,10 +13,10 @@ export const OOHRecordSchema = z.object({
   }, z.number().default(0)),
 
   // Месяц: принудительно в строку, если null -> пустая строка
-  month: z.coerce.string().nullable().transform(v => v || ''),
+  month: z.coerce.string().nullable().transform((v) => v || ''),
   
   // Продавец: принудительно в строку, обрезаем пробелы
-  vendor: z.coerce.string().nullable().transform(v => v?.trim() || 'Неизвестный продавец'),
+  vendor: z.coerce.string().nullable().transform((v) => v?.trim() || 'Неизвестный продавец'),
   
   format: z.coerce.string().default('Unknown'),
   
@@ -48,7 +48,6 @@ export const OOHRecordSchema = z.object({
 
 export type OOHRecord = z.infer<typeof OOHRecordSchema>;
 
-// Остальные интерфейсы без изменений...
 export interface FilterState {
   city: string[];
   year: string[];
@@ -56,5 +55,63 @@ export interface FilterState {
   format: string[];
   vendor: string[];
 }
+
+export interface KPIData {
+  avgGrp: number;
+  totalOts: number;
+  uniqueSurfaces: number;
+}
+
+export interface SmartOptions {
+  cities: string[];
+  years: string[];
+  months: string[];
+  formats: string[];
+  vendors: string[];
+}
+
+export interface MapDataPoint {
+  address: string;
+  city: string;
+  vendor: string;
+  format: string;
+  avgGrp: number;
+  avgOts: number;
+  lat: number;
+  lng: number;
+}
+
+export interface MatrixDataPoint {
+  city: string;
+  format: string;
+  avgGrp: number;
+}
+
+export interface TrendDataPoint {
+  month: string;
+  year: number;
+  avgGrp: number;
+}
+
+export interface ReportDataPoint {
+  city: string;
+  format: string;
+  year: number;
+  month: string;
+  avgGrp: number;
+  sideCount: number;
+}
+
+export interface WorkerQueryResult {
+  type: 'QUERY_RESULT';
+  requestId: number;
+  kpis: KPIData;
+  mapData: MapDataPoint[];
+  trendData: TrendDataPoint[];
+  matrixData: MatrixDataPoint[];
+  reportData: ReportDataPoint[];
+  options: SmartOptions;
+}
+
 export type UserRole = 'ADMIN' | 'GUEST' | null;
 export enum TabView { ANALYTICS = 'ANALYTICS', MAP = 'MAP', REPORTS = 'REPORTS' }

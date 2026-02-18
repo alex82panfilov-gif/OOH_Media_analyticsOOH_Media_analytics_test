@@ -7,7 +7,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { password } = req.body;
+  const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+
+  if (!password) {
+    return res.status(400).json({ message: 'Некорректный payload' });
+  }
 
   // На сервере мы используем process.env
   // В Vercel Dashboard эти переменные должны быть прописаны
@@ -16,10 +20,12 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   if (password === ADMIN_PASS) {
     return res.status(200).json({ role: 'ADMIN' });
-  } else if (password === GUEST_PASS) {
-    return res.status(200).json({ role: 'GUEST' });
-  } else {
-    // Если пароль не подошел
-    return res.status(401).json({ message: 'Неверный пароль' });
   }
+
+  if (password === GUEST_PASS) {
+    return res.status(200).json({ role: 'GUEST' });
+  }
+
+  // Если пароль не подошел
+  return res.status(401).json({ message: 'Неверный пароль' });
 }
