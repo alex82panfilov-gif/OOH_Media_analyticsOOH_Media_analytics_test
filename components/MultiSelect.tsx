@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 
 interface MultiSelectProps {
   label: string; 
@@ -11,6 +11,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ label, options, value,
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -32,6 +33,8 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ label, options, value,
       <button 
         type="button"
         onClick={() => setIsOpen(!isOpen)} 
+        aria-expanded={isOpen}
+        aria-controls={listboxId}
         className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-2 text-xs font-bold shadow-sm hover:border-teal-500 transition-all h-10"
       >
         <span className="truncate">{value.length === 0 ? "Все" : `Выбрано: ${value.length}`}</span>
@@ -47,7 +50,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ label, options, value,
             onChange={(e) => setSearch(e.target.value)}
             className="w-full px-3 py-2 mb-2 text-xs border-b border-gray-100 outline-none focus:border-teal-500"
           />
-          <div className="max-h-48 overflow-y-auto space-y-1">
+          <div id={listboxId} role="listbox" aria-multiselectable="true" className="max-h-48 overflow-y-auto space-y-1">
             <button 
               type="button"
               onClick={() => { onChange([]); setIsOpen(false); }} 

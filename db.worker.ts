@@ -81,19 +81,43 @@ self.onmessage = async (e) => {
     try {
       const { filters } = payload;
       
+      const escapeSqlString = (value: string) => value.replace(/'/g, "''");
+
+      const toSqlInList = (values: unknown[]) =>
+        values
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => `'${escapeSqlString(value)}'`)
+          .join(',');
+
       // Генератор условий WHERE
       const getWhere = (excludeKey: string | null = null) => {
-        let clauses = ['1=1'];
-        if (excludeKey !== 'city' && filters.city?.length) 
-          clauses.push(`city IN (${filters.city.map((c: any) => `'${c}'`).join(',')})`);
-        if (excludeKey !== 'year' && filters.year?.length) 
-          clauses.push(`CAST(year AS VARCHAR) IN (${filters.year.map((y: any) => `'${y}'`).join(',')})`);
-        if (excludeKey !== 'month' && filters.month?.length) 
-          clauses.push(`month IN (${filters.month.map((m: any) => `'${m}'`).join(',')})`);
-        if (excludeKey !== 'format' && filters.format?.length) 
-          clauses.push(`format IN (${filters.format.map((f: any) => `'${f}'`).join(',')})`);
-        if (excludeKey !== 'vendor' && filters.vendor?.length) 
-          clauses.push(`vendor IN (${filters.vendor.map((v: any) => `'${v}'`).join(',')})`);
+        const clauses = ['1=1'];
+
+        if (excludeKey !== 'city' && filters.city?.length) {
+          const cityList = toSqlInList(filters.city);
+          if (cityList) clauses.push(`city IN (${cityList})`);
+        }
+
+        if (excludeKey !== 'year' && filters.year?.length) {
+          const yearList = toSqlInList(filters.year);
+          if (yearList) clauses.push(`CAST(year AS VARCHAR) IN (${yearList})`);
+        }
+
+        if (excludeKey !== 'month' && filters.month?.length) {
+          const monthList = toSqlInList(filters.month);
+          if (monthList) clauses.push(`month IN (${monthList})`);
+        }
+
+        if (excludeKey !== 'format' && filters.format?.length) {
+          const formatList = toSqlInList(filters.format);
+          if (formatList) clauses.push(`format IN (${formatList})`);
+        }
+
+        if (excludeKey !== 'vendor' && filters.vendor?.length) {
+          const vendorList = toSqlInList(filters.vendor);
+          if (vendorList) clauses.push(`vendor IN (${vendorList})`);
+        }
+
         return clauses.join(' AND ');
       };
 

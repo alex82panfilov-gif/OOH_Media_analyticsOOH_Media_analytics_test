@@ -15,7 +15,7 @@ import { exportToExcel } from './utils/export';
 const App: React.FC = () => {
   const { 
     userRole, activeTab, setActiveTab, isLoading, 
-    filters, setFilters, resetFilters,
+    filters, setFilters, resetFilters, logout,
     mapData, trendData, matrixData, reportData, smartOptions, kpis
   } = useStore();
 
@@ -57,7 +57,7 @@ const App: React.FC = () => {
               </>
             )}
           </nav>
-          <button onClick={() => window.location.reload()} className="text-[10px] font-bold text-gray-400 uppercase hover:text-red-500">Выход</button>
+          <button onClick={logout} className="text-[10px] font-bold text-gray-400 uppercase hover:text-red-500">Выход</button>
         </div>
       </header>
 

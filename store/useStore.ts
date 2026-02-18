@@ -30,6 +30,7 @@ interface AppState {
   setQueryResult: (result: any) => void;
   setFilters: (filters: Partial<FilterState>) => void;
   resetFilters: () => void;
+  logout: () => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -58,4 +59,16 @@ setQueryResult: (res) => set({
   }),
 
   resetFilters: () => set({ filters: { city: [], year: [], month: [], format: [], vendor: [] } }),
+  logout: () => set({
+    userRole: null,
+    activeTab: TabView.ANALYTICS,
+    filters: { city: [], year: [], month: [], format: [], vendor: [] },
+    mapData: [],
+    matrixData: [],
+    reportData: [],
+    trendData: [],
+    kpis: { avgGrp: 0, totalOts: 0, uniqueSurfaces: 0 },
+    smartOptions: { cities: [], years: [], months: [], formats: [], vendors: [] },
+    isLoading: false,
+  }),
 }));
