@@ -1,8 +1,11 @@
 import React from 'react';
 import { TabView } from './types';
-import { useStore } from './store/useStore';
+import { useAuthStore } from './store/useAuthStore';
+import { useUIStore } from './store/useUIStore';
+import { useDataStore } from './store/useDataStore';
 import { useAuth } from './hooks/useAuth';
 import { useDataFetcher } from './hooks/useDataFetcher';
+import { useFilterUrlSync } from './hooks/useFilterUrlSync';
 import { AuthGate } from './components/containers/AuthGate';
 import { TopNav } from './components/containers/TopNav';
 import { FilterBar } from './components/containers/FilterBar';
@@ -11,24 +14,33 @@ import { MapTab } from './components/containers/MapTab';
 import { ReportsTab } from './components/containers/ReportsTab';
 
 const App: React.FC = () => {
-  const {
-    userRole,
-    activeTab,
-    setActiveTab,
-    isLoading,
-    filters,
-    setFilters,
-    resetFilters,
-    logout,
-    mapData,
-    trendData,
-    matrixData,
-    reportData,
-    smartOptions,
-    kpis,
-  } = useStore();
+  const userRole = useAuthStore((state) => state.userRole);
+  const logoutAuth = useAuthStore((state) => state.logout);
+  const activeTab = useUIStore((state) => state.activeTab);
+  const setActiveTab = useUIStore((state) => state.setActiveTab);
+  const resetUIState = useUIStore((state) => state.resetUIState);
+  const isLoading = useUIStore((state) => state.isLoading);
+
+  const filters = useDataStore((state) => state.filters);
+  const setFilters = useDataStore((state) => state.setFilters);
+  const resetFilters = useDataStore((state) => state.resetFilters);
+  const mapData = useDataStore((state) => state.mapData);
+  const trendData = useDataStore((state) => state.trendData);
+  const matrixData = useDataStore((state) => state.matrixData);
+  const reportData = useDataStore((state) => state.reportData);
+  const smartOptions = useDataStore((state) => state.smartOptions);
+  const kpis = useDataStore((state) => state.kpis);
+  const resetDataState = useDataStore((state) => state.resetDataState);
 
   useDataFetcher();
+  useFilterUrlSync();
+
+  const logout = React.useCallback(() => {
+    logoutAuth();
+    resetUIState();
+    resetDataState();
+  }, [logoutAuth, resetUIState, resetDataState]);
+
   const { password, setPassword, handleLogin, loginError, isAuthLoading } = useAuth();
 
   if (!userRole) {
@@ -45,10 +57,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-gray-900">
-      <div className="h-1 w-full fixed top-0 left-0 z-[100] overflow-hidden bg-gray-100">
-        {isLoading && <div className="h-full bg-teal-500 animate-[pulse_2s_infinite] w-full shadow-[0_0_8px_rgba(20,184,166,0.5)]"></div>}
-      </div>
-
       <TopNav activeTab={activeTab} userRole={userRole} setActiveTab={setActiveTab} logout={logout} />
 
       <FilterBar
@@ -67,12 +75,13 @@ const App: React.FC = () => {
             trendData={trendData}
             matrixData={matrixData}
             mapData={mapData}
+            isLoading={isLoading}
           />
         )}
 
-        {activeTab === TabView.MAP && userRole === 'ADMIN' && <MapTab data={mapData} />}
+        {activeTab === TabView.MAP && userRole === 'ADMIN' && <MapTab data={mapData} isLoading={isLoading} />}
 
-        {activeTab === TabView.REPORTS && userRole === 'ADMIN' && <ReportsTab data={reportData} />}
+        {activeTab === TabView.REPORTS && userRole === 'ADMIN' && <ReportsTab data={reportData} isLoading={isLoading} />}
       </main>
     </div>
   );

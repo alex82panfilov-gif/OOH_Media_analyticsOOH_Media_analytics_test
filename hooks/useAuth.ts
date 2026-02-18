@@ -1,12 +1,12 @@
-// hooks/useAuth.ts
 import { useState, type FormEvent } from 'react';
-import { useStore } from '../store/useStore';
 import { TabView } from '../types';
+import { useAuthStore } from '../store/useAuthStore';
+import { useUIStore } from '../store/useUIStore';
 
 export const useAuth = () => {
-  const setUserRole = useStore((state) => state.setUserRole);
-  const setActiveTab = useStore((state) => state.setActiveTab);
-  
+  const setUserRole = useAuthStore((state) => state.setUserRole);
+  const setActiveTab = useUIStore((state) => state.setActiveTab);
+
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -30,7 +30,7 @@ export const useAuth = () => {
       } else {
         setLoginError(true);
       }
-    } catch (err) {
+    } catch {
       setLoginError(true);
     } finally {
       setIsAuthLoading(false);
