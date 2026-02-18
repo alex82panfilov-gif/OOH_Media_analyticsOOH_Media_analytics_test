@@ -161,6 +161,7 @@ export const useDataFetcher = () => {
 
         const result = parseArrowPayload(e.data);
         setQueryResult(result);
+        setIsLoading(false);
       }
     };
 
