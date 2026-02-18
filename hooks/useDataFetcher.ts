@@ -5,6 +5,7 @@ import { QueryResult } from '../types';
 
 const DATA_PATH = 'storage_v1_9hf29sk';
 const FILTER_DEBOUNCE_MS = 300;
+const OPTIONS_SEPARATOR = '\u001F';
 
 type WorkerReadyMessage = { type: 'READY' };
 type WorkerErrorMessage = { type: 'ERROR'; message: string };
@@ -54,6 +55,10 @@ const normalizePrimitiveArray = (items: unknown[]): string[] => {
 };
 
 const normalizeStringArray = (value: unknown): string[] => {
+  if (typeof value === 'string') {
+    return normalizePrimitiveArray(value.split(OPTIONS_SEPARATOR));
+  }
+
   if (Array.isArray(value)) {
     return normalizePrimitiveArray(value);
   }

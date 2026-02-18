@@ -7,6 +7,7 @@ let db: duckdb.AsyncDuckDB;
 let conn: duckdb.AsyncDuckDBConnection;
 let isInitialized = false;
 let latestRequestId = 0;
+const OPTIONS_SEPARATOR = '\u001F';
 
 const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
@@ -227,11 +228,36 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 
       const optionsTable = await queryArrowTable(`
         SELECT
-          (SELECT list_sort(list(DISTINCT city)) FROM ooh_data WHERE ${cityOptsFilter.where}) as cities,
-          (SELECT list_sort(list(DISTINCT CAST(year AS VARCHAR))) FROM ooh_data WHERE ${yearOptsFilter.where}) as years,
-          (SELECT list_sort(list(DISTINCT month)) FROM ooh_data WHERE ${monthOptsFilter.where}) as months,
-          (SELECT list_sort(list(DISTINCT format)) FROM ooh_data WHERE ${formatOptsFilter.where}) as formats,
-          (SELECT list_sort(list(DISTINCT vendor)) FROM ooh_data WHERE ${vendorOptsFilter.where}) as vendors
+          (
+            SELECT COALESCE(string_agg(city, '${OPTIONS_SEPARATOR}'), '')
+            FROM (
+              SELECT DISTINCT city FROM ooh_data WHERE ${cityOptsFilter.where} ORDER BY city
+            )
+          ) as cities,
+          (
+            SELECT COALESCE(string_agg(CAST(year AS VARCHAR), '${OPTIONS_SEPARATOR}'), '')
+            FROM (
+              SELECT DISTINCT year FROM ooh_data WHERE ${yearOptsFilter.where} ORDER BY year
+            )
+          ) as years,
+          (
+            SELECT COALESCE(string_agg(month, '${OPTIONS_SEPARATOR}'), '')
+            FROM (
+              SELECT DISTINCT month FROM ooh_data WHERE ${monthOptsFilter.where} ORDER BY month
+            )
+          ) as months,
+          (
+            SELECT COALESCE(string_agg(format, '${OPTIONS_SEPARATOR}'), '')
+            FROM (
+              SELECT DISTINCT format FROM ooh_data WHERE ${formatOptsFilter.where} ORDER BY format
+            )
+          ) as formats,
+          (
+            SELECT COALESCE(string_agg(vendor, '${OPTIONS_SEPARATOR}'), '')
+            FROM (
+              SELECT DISTINCT vendor FROM ooh_data WHERE ${vendorOptsFilter.where} ORDER BY vendor
+            )
+          ) as vendors
       `, [
         ...cityOptsFilter.params,
         ...yearOptsFilter.params,
