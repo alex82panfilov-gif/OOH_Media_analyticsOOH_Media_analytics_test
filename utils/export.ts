@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { OOHRecord } from '../types';
+import { ReportDataItem } from '../types';
 
 // Помощник для определения порядка месяцев
 const getMonthIndex = (monthStr: string) => {
@@ -8,86 +8,72 @@ const getMonthIndex = (monthStr: string) => {
   return months.findIndex(x => x === m);
 };
 
-export const exportToExcel = (data: OOHRecord[], fileName: string = 'OOH_Aggregated_Report') => {
+export const exportToExcel = (data: ReportDataItem[], fileName: string = 'OOH_Aggregated_Report') => {
   if (!data || data.length === 0) return;
 
   const workbook = XLSX.utils.book_new();
 
   // --- ЛИСТ 1: ОБЩАЯ СВОДКА (KPI) ---
-  const totalGrp = data.reduce((acc, curr) => acc + (curr.grp || 0), 0);
-  const avgGrp = data.length > 0 ? totalGrp / data.length : 0;
-  
+  const weightedGrpSum = data.reduce((acc, curr) => acc + ((curr.avgGrp || 0) * (curr.sideCount || 0)), 0);
+  const totalSides = data.reduce((acc, curr) => acc + (curr.sideCount || 0), 0);
+  const avgGrp = totalSides > 0 ? weightedGrpSum / totalSides : 0;
+
   const summaryData = [
     ['СВОДНЫЙ ОТЧЕТ ПО ЭФФЕКТИВНОСТИ OOH'],
     ['Дата выгрузки', new Date().toLocaleDateString('ru-RU')],
-    ['Период/Выборка', `${data.length} рекламных поверхностей`],
+    ['Период/Выборка', `${totalSides} рекламных поверхностей`],
     [],
     ['ОСНОВНЫЕ ПОКАЗАТЕЛИ'],
-    ['Средний GRP (по всем городам)', Number(avgGrp.toFixed(4))],
-    ['Общий OTS (суммарный, тыс. чел)', Number(data.reduce((acc, curr) => acc + (curr.ots || 0), 0).toFixed(2))],
+    ['Средний GRP (взвешенный по количеству конструкций)', Number(avgGrp.toFixed(4))],
     ['Количество уникальных городов', new Set(data.map(d => d.city)).size],
-    ['Количество форматов', new Set(data.map(d => d.format)).size]
+    ['Количество форматов', new Set(data.map(d => d.format)).size],
+    ['Количество периодов (город+формат+месяц)', data.length],
   ];
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(workbook, wsSummary, "Сводка");
+  XLSX.utils.book_append_sheet(workbook, wsSummary, 'Сводка');
 
   // --- ЛИСТ 2: МАТРИЦА (ГОРОД / ФОРМАТ) ---
-  // Решает задачу: средний рейтинг по всем городам и форматам за период в одной таблице
   const cities = Array.from(new Set(data.map(d => d.city))).sort();
   const formats = Array.from(new Set(data.map(d => d.format))).sort();
-  
+
   const matrixHeader = ['Город / Формат (Средний GRP)', ...formats];
   const matrixRows = cities.map(city => {
-    const row: any[] = [city];
+    const row: (string | number | null)[] = [city];
     formats.forEach(fmt => {
-      // Фильтруем данные конкретно под ячейку (город + формат)
-      const cellData = data.filter(d => d.city === city && d.format === fmt && (d.grp || 0) > 0);
+      const cellData = data.filter(d => d.city === city && d.format === fmt && (d.avgGrp || 0) > 0);
       if (cellData.length > 0) {
-        const avg = cellData.reduce((s, c) => s + (c.grp || 0), 0) / cellData.length;
-        row.push(Number(avg.toFixed(3)));
+        const weightedSum = cellData.reduce((s, c) => s + ((c.avgGrp || 0) * (c.sideCount || 0)), 0);
+        const count = cellData.reduce((s, c) => s + (c.sideCount || 0), 0);
+        row.push(count > 0 ? Number((weightedSum / count).toFixed(3)) : null);
       } else {
-        row.push(null); // В Excel будет пустая ячейка
+        row.push(null);
       }
     });
     return row;
   });
   const wsMatrix = XLSX.utils.aoa_to_sheet([matrixHeader, ...matrixRows]);
-  XLSX.utils.book_append_sheet(workbook, wsMatrix, "Город_Формат");
+  XLSX.utils.book_append_sheet(workbook, wsMatrix, 'Город_Формат');
 
   // --- ЛИСТ 3: ДЕТАЛЬНАЯ ДИНАМИКА (ГОРОД + ФОРМАТ + МЕСЯЦ) ---
-  // Решает задачу: динамика всех городов и форматов без ручного переключения
-  const dynGroups: Record<string, { sum: number, count: number, city: string, fmt: string, y: number, m: string }> = {};
-  
-  data.forEach(d => {
-    const key = `${d.city}|${d.format}|${d.year}|${d.month}`;
-    if (!dynGroups[key]) {
-      dynGroups[key] = { sum: 0, count: 0, city: d.city, fmt: d.format, y: d.year, m: d.month };
-    }
-    dynGroups[key].sum += (d.grp || 0);
-    dynGroups[key].count += 1;
-  });
-
-  const dynReportData = Object.values(dynGroups)
+  const dynReportData = [...data]
     .sort((a, b) => {
       if (a.city !== b.city) return a.city.localeCompare(b.city);
-      if (a.y !== b.y) return a.y - b.y;
-      return getMonthIndex(a.m) - getMonthIndex(b.m);
+      if (a.year !== b.year) return a.year - b.year;
+      return getMonthIndex(a.month) - getMonthIndex(b.month);
     })
     .map(item => ({
       'Город': item.city,
-      'Формат': item.fmt,
-      'Год': item.y,
-      'Месяц': item.m,
-      'Средний GRP': Number((item.sum / item.count).toFixed(3)),
-      'Количество конструкций': item.count
+      'Формат': item.format,
+      'Год': item.year,
+      'Месяц': item.month,
+      'Средний GRP': Number((item.avgGrp || 0).toFixed(3)),
+      'Количество конструкций': item.sideCount || 0,
     }));
   const wsDyn = XLSX.utils.json_to_sheet(dynReportData);
-  
-  // Авто-ширина колонок для листа динамики
-  wsDyn['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 20 }];
-  XLSX.utils.book_append_sheet(workbook, wsDyn, "Динамика_Детально");
 
-  // Генерация файла
+  wsDyn['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(workbook, wsDyn, 'Динамика_Детально');
+
   const dateStr = new Date().toISOString().split('T')[0];
   XLSX.writeFile(workbook, `${fileName}_${dateStr}.xlsx`);
 };

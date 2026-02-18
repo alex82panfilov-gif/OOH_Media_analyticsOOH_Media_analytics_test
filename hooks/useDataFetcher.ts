@@ -16,12 +16,19 @@ export const useDataFetcher = () => {
     const worker = new Worker(new URL('../db.worker.ts', import.meta.url), { type: 'module' });
     workerRef.current = worker;
 
-    worker.onmessage = (e: MessageEvent<QueryResult | { type: 'READY' }>) => {
+    worker.onmessage = (e: MessageEvent<QueryResult | { type: 'READY' } | { type: 'ERROR'; message: string }>) => {
       const { type } = e.data;
 
       if (type === 'READY') {
         requestIdRef.current += 1;
         worker.postMessage({ type: 'QUERY', payload: { filters, requestId: requestIdRef.current } });
+        return;
+      }
+
+      if (type === 'ERROR') {
+        console.error('Worker error:', e.data.message);
+        setIsLoading(false);
+        window.alert(`Ошибка загрузки данных: ${e.data.message}`);
         return;
       }
 
@@ -37,6 +44,10 @@ export const useDataFetcher = () => {
       setIsLoading(true);
       try {
         const response = await fetch(`/${DATA_PATH}/data-manifest.json`);
+        if (!response.ok) {
+          throw new Error(`Не удалось загрузить data-manifest.json (${response.status})`);
+        }
+
         const files = await response.json();
 
         if (files.length > 0) {
