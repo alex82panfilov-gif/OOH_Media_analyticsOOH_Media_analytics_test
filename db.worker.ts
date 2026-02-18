@@ -1,6 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import { tableToIPC } from 'apache-arrow';
 import { z } from 'zod';
-import { FilterState, KpiData, MapDataItem, MatrixDataItem, ReportDataItem, SmartOptions, TrendDataItem } from './types';
+import { FilterState } from './types';
 
 let db: duckdb.AsyncDuckDB;
 let conn: duckdb.AsyncDuckDBConnection;
@@ -9,9 +10,7 @@ let latestRequestId = 0;
 
 const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
-const serialize = <T,>(obj: T): T => JSON.parse(JSON.stringify(obj, (_, value) => (
-  typeof value === 'bigint' ? value.toString() : value
-))) as T;
+const toTransferableBuffer = (bytes: Uint8Array): ArrayBuffer => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 
 async function initDB() {
   const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
@@ -92,11 +91,10 @@ const createWhere = (filters: Required<FilterState>, excludeKey: keyof FilterSta
   return { where: clauses.join(' AND '), params };
 };
 
-const queryWithFilters = async <T>(sql: string, params: string[] = []): Promise<T[]> => {
+const queryArrowTable = async (sql: string, params: string[] = []) => {
   const statement = await conn.prepare(sql);
   try {
-    const result = await statement.query(...params);
-    return result.toArray().map((r) => r.toJSON()) as T[];
+    return await statement.query(...params);
   } finally {
     await statement.close();
   }
@@ -182,7 +180,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       const formatOptsFilter = createWhere(safeFilters, 'format');
       const vendorOptsFilter = createWhere(safeFilters, 'vendor');
 
-      const kpiRows = await queryWithFilters<KpiData>(`
+      const kpiTable = await queryArrowTable(`
         SELECT
           AVG(grp) as avgGrp,
           (SELECT AVG(monthly_total) FROM (
@@ -196,7 +194,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         WHERE ${mainFilter.where}
       `, [...mainFilter.params, ...mainFilter.params]);
 
-      const mapRows = await queryWithFilters<MapDataItem>(`
+      const mapTable = await queryArrowTable(`
         SELECT
           address, city, vendor, format,
           AVG(grp) as avgGrp,
@@ -208,26 +206,26 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         GROUP BY address, city, vendor, format
       `, mainFilter.params);
 
-      const trendRows = await queryWithFilters<TrendDataItem>(`
+      const trendTable = await queryArrowTable(`
         SELECT month, year, AVG(grp) as avgGrp
         FROM ooh_data WHERE ${mainFilter.where}
         GROUP BY year, month ORDER BY year, month
       `, mainFilter.params);
 
-      const matrixRows = await queryWithFilters<MatrixDataItem>(`
+      const matrixTable = await queryArrowTable(`
         SELECT city, format, AVG(grp) as avgGrp
         FROM ooh_data WHERE ${mainFilter.where}
         GROUP BY city, format
       `, mainFilter.params);
 
-      const reportRows = await queryWithFilters<ReportDataItem>(`
+      const reportTable = await queryArrowTable(`
         SELECT city, format, year, month, AVG(grp) as avgGrp, COUNT(*) as sideCount
         FROM ooh_data WHERE ${mainFilter.where}
         GROUP BY city, format, year, month
         ORDER BY city, year, month
       `, mainFilter.params);
 
-      const optsRows = await queryWithFilters<SmartOptions>(`
+      const optionsTable = await queryArrowTable(`
         SELECT
           (SELECT list_sort(list(DISTINCT city)) FROM ooh_data WHERE ${cityOptsFilter.where}) as cities,
           (SELECT list_sort(list(DISTINCT CAST(year AS VARCHAR))) FROM ooh_data WHERE ${yearOptsFilter.where}) as years,
@@ -246,16 +244,23 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         return;
       }
 
-      self.postMessage(serialize({
-        type: 'QUERY_RESULT',
+      const kpis = toTransferableBuffer(tableToIPC(kpiTable, 'stream'));
+      const mapData = toTransferableBuffer(tableToIPC(mapTable, 'stream'));
+      const trendData = toTransferableBuffer(tableToIPC(trendTable, 'stream'));
+      const matrixData = toTransferableBuffer(tableToIPC(matrixTable, 'stream'));
+      const reportData = toTransferableBuffer(tableToIPC(reportTable, 'stream'));
+      const options = toTransferableBuffer(tableToIPC(optionsTable, 'stream'));
+
+      (self as { postMessage: (message: unknown, transfer: Transferable[]) => void }).postMessage({
+        type: 'QUERY_RESULT_ARROW',
         requestId,
-        kpis: (kpiRows[0] ?? { avgGrp: 0, totalOts: 0, uniqueSurfaces: 0 }) as KpiData,
-        mapData: mapRows,
-        trendData: trendRows,
-        matrixData: matrixRows,
-        reportData: reportRows,
-        options: (optsRows[0] ?? { cities: [], years: [], months: [], formats: [], vendors: [] }) as SmartOptions,
-      }));
+        kpis,
+        mapData,
+        trendData,
+        matrixData,
+        reportData,
+        options,
+      }, [kpis, mapData, trendData, matrixData, reportData, options]);
     }
   } catch (err) {
     console.error('DuckDB Worker Error:', err);

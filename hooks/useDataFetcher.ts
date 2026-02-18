@@ -1,9 +1,63 @@
+import { tableFromIPC } from 'apache-arrow';
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { QueryResult } from '../types';
 
 const DATA_PATH = 'storage_v1_9hf29sk';
 const FILTER_DEBOUNCE_MS = 300;
+
+type WorkerReadyMessage = { type: 'READY' };
+type WorkerErrorMessage = { type: 'ERROR'; message: string };
+type WorkerArrowResult = {
+  type: 'QUERY_RESULT_ARROW';
+  requestId: number;
+  kpis: ArrayBuffer;
+  mapData: ArrayBuffer;
+  trendData: ArrayBuffer;
+  matrixData: ArrayBuffer;
+  reportData: ArrayBuffer;
+  options: ArrayBuffer;
+};
+
+const sanitizeValue = (value: unknown): unknown => {
+  if (typeof value === 'bigint') {
+    const asNumber = Number(value);
+    return Number.isSafeInteger(asNumber) ? asNumber : value.toString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => [key, sanitizeValue(nestedValue)]),
+    );
+  }
+
+  return value;
+};
+
+const parseArrowRows = <T,>(buffer: ArrayBuffer): T[] => {
+  const table = tableFromIPC(new Uint8Array(buffer));
+  return table.toArray().map((row) => sanitizeValue(row.toJSON()) as T);
+};
+
+const parseArrowPayload = (payload: WorkerArrowResult): QueryResult => {
+  const kpiRows = parseArrowRows<QueryResult['kpis']>(payload.kpis);
+  const optionsRows = parseArrowRows<QueryResult['options']>(payload.options);
+
+  return {
+    type: 'QUERY_RESULT',
+    requestId: payload.requestId,
+    kpis: (kpiRows[0] ?? { avgGrp: 0, totalOts: 0, uniqueSurfaces: 0 }) as QueryResult['kpis'],
+    mapData: parseArrowRows<QueryResult['mapData'][number]>(payload.mapData),
+    trendData: parseArrowRows<QueryResult['trendData'][number]>(payload.trendData),
+    matrixData: parseArrowRows<QueryResult['matrixData'][number]>(payload.matrixData),
+    reportData: parseArrowRows<QueryResult['reportData'][number]>(payload.reportData),
+    options: (optionsRows[0] ?? { cities: [], years: [], months: [], formats: [], vendors: [] }) as QueryResult['options'],
+  };
+};
 
 export const useDataFetcher = () => {
   const { userRole, setIsLoading, filters, setQueryResult } = useStore();
@@ -16,7 +70,7 @@ export const useDataFetcher = () => {
     const worker = new Worker(new URL('../db.worker.ts', import.meta.url), { type: 'module' });
     workerRef.current = worker;
 
-    worker.onmessage = (e: MessageEvent<QueryResult | { type: 'READY' } | { type: 'ERROR'; message: string }>) => {
+    worker.onmessage = (e: MessageEvent<WorkerReadyMessage | WorkerErrorMessage | WorkerArrowResult>) => {
       const { type } = e.data;
 
       if (type === 'READY') {
@@ -32,11 +86,13 @@ export const useDataFetcher = () => {
         return;
       }
 
-      if (type === 'QUERY_RESULT') {
+      if (type === 'QUERY_RESULT_ARROW') {
         if (e.data.requestId !== requestIdRef.current) {
           return;
         }
-        setQueryResult(e.data);
+
+        const result = parseArrowPayload(e.data);
+        setQueryResult(result);
       }
     };
 

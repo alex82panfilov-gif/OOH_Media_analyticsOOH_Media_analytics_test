@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 
 // --- TREND CHART ---
-export const TrendChart: React.FC<{ data: TrendDataItem[] }> = ({ data }) => {
+const TrendChartComponent: React.FC<{ data: TrendDataItem[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const monthOrder = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
     return [...data].sort((a, b) => {
@@ -55,8 +55,10 @@ export const TrendChart: React.FC<{ data: TrendDataItem[] }> = ({ data }) => {
   );
 };
 
+export const TrendChart = React.memo(TrendChartComponent);
+
 // --- BAR CHART ---
-export const FormatBarChart: React.FC<{ data: MatrixDataItem[] }> = ({ data }) => {
+const FormatBarChartComponent: React.FC<{ data: MatrixDataItem[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const map = new Map<string, { sum: number, count: number }>();
     data.forEach(d => {
@@ -101,6 +103,8 @@ export const FormatBarChart: React.FC<{ data: MatrixDataItem[] }> = ({ data }) =
     </div>
   );
 };
+
+export const FormatBarChart = React.memo(FormatBarChartComponent);
 
 // --- TREEMAP ---
 const COLORS = ['#0f172a', '#1e293b', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'];
