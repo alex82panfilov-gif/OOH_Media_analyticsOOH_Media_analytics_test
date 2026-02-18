@@ -1,17 +1,16 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import { FilterState, KpiData, MapDataItem, MatrixDataItem, ReportDataItem, SmartOptions, TrendDataItem } from './types';
 
 let db: duckdb.AsyncDuckDB;
 let conn: duckdb.AsyncDuckDBConnection;
 let isInitialized = false;
+let latestRequestId = 0;
 
 const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
-// Помощник для превращения BigInt (который выдает DuckDB) в строку/число для JSON
-const serialize = (obj: any) => {
-  return JSON.parse(JSON.stringify(obj, (_, value) =>
-    typeof value === 'bigint' ? value.toString() : value
-  ));
-};
+const serialize = <T,>(obj: T): T => JSON.parse(JSON.stringify(obj, (_, value) => (
+  typeof value === 'bigint' ? value.toString() : value
+))) as T;
 
 async function initDB() {
   const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
@@ -20,41 +19,43 @@ async function initDB() {
   const blob = new Blob([worker_code], { type: 'text/javascript' });
   const blob_url = URL.createObjectURL(blob);
   const worker = new Worker(blob_url);
-  
+
   const logger = new duckdb.ConsoleLogger();
   db = new duckdb.AsyncDuckDB(logger, worker);
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-  
+
   URL.revokeObjectURL(blob_url);
   conn = await db.connect();
 }
 
 const initPromise = initDB();
 
-self.onmessage = async (e) => {
+type WorkerMessage =
+  | { type: 'LOAD_DATA'; payload: { files: string[]; basePath: string } }
+  | { type: 'QUERY'; payload: { filters: FilterState; requestId: number } };
+
+self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   await initPromise;
   const { type, payload } = e.data;
 
   if (type === 'LOAD_DATA') {
     try {
-      const { files, basePath } = payload; // Получаем basePath из хука
+      const { files, basePath } = payload;
 
       for (const file of files) {
         await db.registerFileURL(
-          file, 
-          // Теперь URL формируется динамически с учетом секретной папки
-          `${location.origin}/${basePath}/${file}`, 
-          duckdb.DuckDBDataProtocol.HTTP, 
-          false
+          file,
+          `${location.origin}/${basePath}/${file}`,
+          duckdb.DuckDBDataProtocol.HTTP,
+          false,
         );
       }
-      
-      const fileListSql = files.map((f: string) => `'${f}'`).join(', ');
 
-      // ОЧИСТКА ДАННЫХ И СОЗДАНИЕ VIEW
+      const fileListSql = files.map((f) => `'${f}'`).join(', ');
+
       await conn.query(`
-        CREATE OR REPLACE VIEW ooh_data AS 
-        SELECT 
+        CREATE OR REPLACE VIEW ooh_data AS
+        SELECT
           "Адрес в системе Admetrix" as address,
           "Город" as city,
           CAST("Год" AS INTEGER) as year,
@@ -67,11 +68,11 @@ self.onmessage = async (e) => {
           TRY_CAST(REPLACE(CAST("Долгота" AS VARCHAR), ',', '.') AS DOUBLE) as lng
         FROM read_parquet([${fileListSql}]);
       `);
-      
+
       isInitialized = true;
       self.postMessage({ type: 'READY' });
     } catch (err) {
-      console.error("DuckDB Load Error:", err);
+      console.error('DuckDB Load Error:', err);
     }
   }
 
@@ -79,18 +80,17 @@ self.onmessage = async (e) => {
     if (!isInitialized) return;
 
     try {
-      const { filters } = payload;
-      
+      const { filters, requestId } = payload;
+      latestRequestId = Math.max(latestRequestId, requestId);
+
       const escapeSqlString = (value: string) => value.replace(/'/g, "''");
 
-      const toSqlInList = (values: unknown[]) =>
-        values
-          .filter((value): value is string => typeof value === 'string')
-          .map((value) => `'${escapeSqlString(value)}'`)
-          .join(',');
+      const toSqlInList = (values: unknown[]) => values
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => `'${escapeSqlString(value)}'`)
+        .join(',');
 
-      // Генератор условий WHERE
-      const getWhere = (excludeKey: string | null = null) => {
+      const getWhere = (excludeKey: keyof FilterState | null = null) => {
         const clauses = ['1=1'];
 
         if (excludeKey !== 'city' && filters.city?.length) {
@@ -123,46 +123,38 @@ self.onmessage = async (e) => {
 
       const mainWhere = getWhere(null);
 
-      // --- 1. ГЛОБАЛЬНЫЕ КПИ (Точные расчеты) ---
-      // Рассчитываем все показатели за один проход по базе
       const kpiRes = await conn.query(`
-        SELECT 
+        SELECT
           AVG(grp) as avgGrp,
-          -- Считаем СУММУ всех OTS для каждого месяца отдельно, 
-          -- а затем берем среднее значение между этими суммами (если выбрано несколько месяцев)
           (SELECT AVG(monthly_total) FROM (
-             SELECT SUM(ots) as monthly_total 
-             FROM ooh_data 
-             WHERE ${mainWhere} 
+             SELECT SUM(ots) as monthly_total
+             FROM ooh_data
+             WHERE ${mainWhere}
              GROUP BY year, month
           )) as totalOts,
-          -- Количество уникальных поверхностей (сторон) в выборке
           COUNT(DISTINCT address) as uniqueSurfaces
         FROM ooh_data
         WHERE ${mainWhere}
       `);
 
-      // --- 2. ДАННЫЕ ДЛЯ КАРТЫ (Группировка по поверхности) ---
       const mapRes = await conn.query(`
-        SELECT 
+        SELECT
           address, city, vendor, format,
-          AVG(grp) as avgGrp, 
+          AVG(grp) as avgGrp,
           AVG(ots) as avgOts,
-          MAX(lat) as lat, 
+          MAX(lat) as lat,
           MAX(lng) as lng
-        FROM ooh_data 
+        FROM ooh_data
         WHERE ${mainWhere}
         GROUP BY address, city, vendor, format
       `);
 
-      // --- 3. ТРЕНДЫ (Динамика по месяцам) ---
       const trendRes = await conn.query(`
         SELECT month, year, AVG(grp) as avgGrp
         FROM ooh_data WHERE ${mainWhere}
         GROUP BY year, month ORDER BY year, month
       `);
 
-      // --- 4. МАТРИЦА И ОТЧЕТЫ ---
       const matrixRes = await conn.query(`
         SELECT city, format, AVG(grp) as avgGrp
         FROM ooh_data WHERE ${mainWhere}
@@ -176,9 +168,8 @@ self.onmessage = async (e) => {
         ORDER BY city, year, month
       `);
 
-      // --- 5. УМНЫЕ ФИЛЬТРЫ ---
       const optsRes = await conn.query(`
-        SELECT 
+        SELECT
           (SELECT list_sort(list(DISTINCT city)) FROM ooh_data WHERE ${getWhere('city')}) as cities,
           (SELECT list_sort(list(DISTINCT CAST(year AS VARCHAR))) FROM ooh_data WHERE ${getWhere('year')}) as years,
           (SELECT list_sort(list(DISTINCT month)) FROM ooh_data WHERE ${getWhere('month')}) as months,
@@ -186,18 +177,22 @@ self.onmessage = async (e) => {
           (SELECT list_sort(list(DISTINCT vendor)) FROM ooh_data WHERE ${getWhere('vendor')}) as vendors
       `);
 
+      if (requestId < latestRequestId) {
+        return;
+      }
+
       self.postMessage(serialize({
         type: 'QUERY_RESULT',
-        kpis: kpiRes.toArray().map(r => r.toJSON())[0],
-        mapData: mapRes.toArray().map(r => r.toJSON()),
-        trendData: trendRes.toArray().map(r => r.toJSON()),
-        matrixData: matrixRes.toArray().map(r => r.toJSON()),
-        reportData: reportRes.toArray().map(r => r.toJSON()),
-        options: optsRes.toArray().map(r => r.toJSON())[0]
+        requestId,
+        kpis: (kpiRes.toArray().map((r) => r.toJSON())[0] ?? { avgGrp: 0, totalOts: 0, uniqueSurfaces: 0 }) as KpiData,
+        mapData: mapRes.toArray().map((r) => r.toJSON()) as MapDataItem[],
+        trendData: trendRes.toArray().map((r) => r.toJSON()) as TrendDataItem[],
+        matrixData: matrixRes.toArray().map((r) => r.toJSON()) as MatrixDataItem[],
+        reportData: reportRes.toArray().map((r) => r.toJSON()) as ReportDataItem[],
+        options: (optsRes.toArray().map((r) => r.toJSON())[0] ?? { cities: [], years: [], months: [], formats: [], vendors: [] }) as SmartOptions,
       }));
-
     } catch (err) {
-      console.error("DuckDB Query Error:", err);
+      console.error('DuckDB Query Error:', err);
     }
   }
 };

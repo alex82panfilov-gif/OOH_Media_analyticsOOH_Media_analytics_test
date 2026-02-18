@@ -1,15 +1,16 @@
 import React, { useRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { formatNumberRussian } from '../utils/data';
+import { ReportDataItem } from '../types';
 
-export const PivotReports: React.FC<{ data: any[] }> = ({ data }) => {
+export const PivotReports: React.FC<{ data: ReportDataItem[] }> = ({ data }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Группируем данные для матрицы (Город / Формат)
   const matrix = useMemo(() => {
     const cities = Array.from(new Set(data.map(d => d.city))).sort();
     const formats = Array.from(new Set(data.map(d => d.format))).sort();
-    const lookup: any = {};
+    const lookup: Record<string, Record<string, number>> = {};
     data.forEach(d => {
       if (!lookup[d.city]) lookup[d.city] = {};
       lookup[d.city][d.format] = d.avgGrp;
