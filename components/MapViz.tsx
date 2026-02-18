@@ -4,11 +4,23 @@ import L from 'leaflet';
 import Supercluster from 'supercluster';
 import { formatNumberRussian } from '../utils/data';
 import { Navigation, MousePointer2, Info } from 'lucide-react';
+import { MapDataItem } from '../types';
+
+type ClusterProperties = {
+  cluster: true;
+  cluster_id: number;
+  point_count: number;
+};
+
+type PointProperties = MapDataItem;
+type ClusterPoint = Supercluster.PointFeature<PointProperties>;
+type ClusterFeature = Supercluster.ClusterFeature<ClusterProperties>;
+type ClusterOrPoint = ClusterPoint | ClusterFeature;
 
 const FORMAT_COLORS: Record<string, string> = {
-  'BB': '#2563eb', 'DBB': '#0891b2', 'CB': '#ea580c',
-  'DCB': '#f59e0b', 'CF': '#16a34a', 'DCF': '#10b981',
-  'SS': '#84cc16', 'DSS': '#e11d48', 'MF': '#9333ea',
+  BB: '#2563eb', DBB: '#0891b2', CB: '#ea580c',
+  DCB: '#f59e0b', CF: '#16a34a', DCF: '#10b981',
+  SS: '#84cc16', DSS: '#e11d48', MF: '#9333ea',
 };
 
 const MapController = ({ center }: { center: [number, number] }) => {
@@ -19,14 +31,20 @@ const MapController = ({ center }: { center: [number, number] }) => {
   return null;
 };
 
-const Clusters = ({ index, onSelect }: any) => {
+const Clusters = ({
+  index,
+  onSelect,
+}: {
+  index: Supercluster<PointProperties, ClusterProperties>;
+  onSelect: (address: string) => void;
+}) => {
   const map = useMap();
-  const [clusters, setClusters] = useState([]);
+  const [clusters, setClusters] = useState<ClusterOrPoint[]>([]);
 
   const update = () => {
     const bounds = map.getBounds();
     const bbox: [number, number, number, number] = [
-      bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()
+      bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth(),
     ];
     setClusters(index.getClusters(bbox, map.getZoom()));
   };
@@ -39,11 +57,12 @@ const Clusters = ({ index, onSelect }: any) => {
 
   return (
     <>
-      {clusters.map((cluster: any) => {
+      {clusters.map((cluster) => {
         const [lng, lat] = cluster.geometry.coordinates;
-        const { cluster: isCluster, point_count, cluster_id } = cluster.properties;
 
-        if (isCluster) {
+        if ('cluster' in cluster.properties && cluster.properties.cluster) {
+          const { point_count, cluster_id } = cluster.properties;
+
           return (
             <Marker
               key={`cluster-${cluster_id}`}
@@ -51,13 +70,13 @@ const Clusters = ({ index, onSelect }: any) => {
               icon={L.divIcon({
                 html: `<div style="background: #0f172a; color: white; border: 2px solid white; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px;">${point_count}</div>`,
                 className: '',
-                iconSize: [35, 35]
+                iconSize: [35, 35],
               })}
               eventHandlers={{
                 click: () => {
                   const expansionZoom = Math.min(index.getClusterExpansionZoom(cluster_id), 18);
                   map.setView([lat, lng], expansionZoom);
-                }
+                },
               }}
             />
           );
@@ -71,7 +90,7 @@ const Clusters = ({ index, onSelect }: any) => {
               html: `<svg width="30" height="30" viewBox="0 0 24 24"><path fill="${FORMAT_COLORS[cluster.properties.format] || '#64748b'}" stroke="white" stroke-width="2" d="M12 0c-4.198 0-8 3.403-8 7.602 0 4.198 3.469 9.21 8 16.398 4.531-7.188 8-12.2 8-16.398 0-4.199-3.801-7.602-8-7.602z"/></svg>`,
               className: '',
               iconSize: [30, 30],
-              iconAnchor: [15, 30]
+              iconAnchor: [15, 30],
             })}
             eventHandlers={{ click: () => onSelect(cluster.properties.address) }}
           />
@@ -81,13 +100,12 @@ const Clusters = ({ index, onSelect }: any) => {
   );
 };
 
-export const MapViz: React.FC<{ data: any[] }> = ({ data }) => {
+export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
 
-  // Карта адресов для быстрого поиска
   const surfaceStats = useMemo(() => {
-    const stats = new Map();
-    data.forEach(p => stats.set(p.address, p));
+    const stats = new Map<string, MapDataItem>();
+    data.forEach((p) => stats.set(p.address, p));
     return stats;
   }, [data]);
 
@@ -95,16 +113,16 @@ export const MapViz: React.FC<{ data: any[] }> = ({ data }) => {
     if (data.length === 0) return [55.75, 37.61];
     return [
       data.reduce((s, p) => s + p.lat, 0) / data.length,
-      data.reduce((s, p) => s + p.lng, 0) / data.length
+      data.reduce((s, p) => s + p.lng, 0) / data.length,
     ];
   }, [data]);
 
   const index = useMemo(() => {
-    const sc = new Supercluster({ radius: 50, maxZoom: 17 });
-    sc.load(data.map(p => ({
+    const sc = new Supercluster<PointProperties, ClusterProperties>({ radius: 50, maxZoom: 17 });
+    sc.load(data.map((p): ClusterPoint => ({
       type: 'Feature',
       properties: { ...p },
-      geometry: { type: 'Point', coordinates: [p.lng, p.lat] } as any
+      geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
     })));
     return sc;
   }, [data]);
@@ -178,9 +196,9 @@ export const MapViz: React.FC<{ data: any[] }> = ({ data }) => {
             </div>
 
             <div className="p-8 pt-0 mt-auto">
-               <button onClick={() => window.open(`https://yandex.ru/maps/?text=${currentSelection.lat},${currentSelection.lng}`, '_blank')} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase flex items-center justify-center gap-3 hover:bg-slate-800 transition-all">
-                 <Navigation size={16} fill="white" /> Смотреть панораму
-               </button>
+              <button onClick={() => window.open(`https://yandex.ru/maps/?text=${currentSelection.lat},${currentSelection.lng}`, '_blank')} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase flex items-center justify-center gap-3 hover:bg-slate-800 transition-all">
+                <Navigation size={16} fill="white" /> Смотреть панораму
+              </button>
             </div>
           </div>
         )}

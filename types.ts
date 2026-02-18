@@ -1,4 +1,3 @@
-// types.ts
 import { z } from 'zod';
 
 export const OOHRecordSchema = z.object({
@@ -48,7 +47,63 @@ export const OOHRecordSchema = z.object({
 
 export type OOHRecord = z.infer<typeof OOHRecordSchema>;
 
-// Остальные интерфейсы без изменений...
+export interface KpiData {
+  avgGrp: number;
+  totalOts: number;
+  uniqueSurfaces: number;
+}
+
+export interface SmartOptions {
+  cities: string[];
+  years: string[];
+  months: string[];
+  formats: string[];
+  vendors: string[];
+}
+
+export interface MapDataItem {
+  address: string;
+  city: string;
+  vendor: string;
+  format: string;
+  avgGrp: number;
+  avgOts: number;
+  lat: number;
+  lng: number;
+}
+
+export interface MatrixDataItem {
+  city: string;
+  format: string;
+  avgGrp: number;
+}
+
+export interface TrendDataItem {
+  month: string;
+  year: number;
+  avgGrp: number;
+}
+
+export interface ReportDataItem {
+  city: string;
+  format: string;
+  year: number;
+  month: string;
+  avgGrp: number;
+  sideCount: number;
+}
+
+export interface QueryResult {
+  type: 'QUERY_RESULT';
+  requestId: number;
+  kpis: KpiData;
+  mapData: MapDataItem[];
+  trendData: TrendDataItem[];
+  matrixData: MatrixDataItem[];
+  reportData: ReportDataItem[];
+  options: SmartOptions;
+}
+
 export interface FilterState {
   city: string[];
   year: string[];
@@ -56,5 +111,7 @@ export interface FilterState {
   format: string[];
   vendor: string[];
 }
+
 export type UserRole = 'ADMIN' | 'GUEST' | null;
+
 export enum TabView { ANALYTICS = 'ANALYTICS', MAP = 'MAP', REPORTS = 'REPORTS' }

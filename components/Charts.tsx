@@ -1,11 +1,12 @@
 import React from 'react';
+import { MapDataItem, MatrixDataItem, TrendDataItem } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Treemap, LabelList
 } from 'recharts';
 
 // --- TREND CHART ---
-export const TrendChart: React.FC<{ data: any[] }> = ({ data }) => {
+export const TrendChart: React.FC<{ data: TrendDataItem[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const monthOrder = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
     return [...data].sort((a, b) => {
@@ -55,7 +56,7 @@ export const TrendChart: React.FC<{ data: any[] }> = ({ data }) => {
 };
 
 // --- BAR CHART ---
-export const FormatBarChart: React.FC<{ data: any[] }> = ({ data }) => {
+export const FormatBarChart: React.FC<{ data: MatrixDataItem[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const map = new Map<string, { sum: number, count: number }>();
     data.forEach(d => {
@@ -104,8 +105,18 @@ export const FormatBarChart: React.FC<{ data: any[] }> = ({ data }) => {
 // --- TREEMAP ---
 const COLORS = ['#0f172a', '#1e293b', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'];
 
-const CustomTreemapContent = (props: any) => {
-  const { x, y, width, height, name, avgOts, index } = props;
+interface TreemapNodeProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  name?: string;
+  avgOts?: number;
+  index?: number;
+}
+
+const CustomTreemapContent = (props: TreemapNodeProps) => {
+  const { x = 0, y = 0, width = 0, height = 0, name, avgOts, index = 0 } = props;
   if (width < 45 || height < 25) return null;
   
   // ЗАЩИТА: Превращаем name в строку и проверяем на null
@@ -136,7 +147,7 @@ const CustomTreemapContent = (props: any) => {
   );
 };
 
-export const VendorTreemap: React.FC<{ data: any[] }> = ({ data }) => {
+export const VendorTreemap: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const map = new Map<string, number>();
     data.forEach(d => {
