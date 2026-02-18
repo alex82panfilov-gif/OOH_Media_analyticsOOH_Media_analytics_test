@@ -17,8 +17,8 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   // На сервере мы используем process.env
   // В Vercel Dashboard эти переменные должны быть прописаны
-  const ADMIN_PASS = process.env.VITE_ADMIN_PASS;
-  const GUEST_PASS = process.env.VITE_GUEST_PASS;
+  const ADMIN_PASS = process.env.ADMIN_PASSWORD;
+  const GUEST_PASS = process.env.GUEST_PASSWORD;
 
   if (password === ADMIN_PASS) {
     return res.status(200).json({ role: 'ADMIN' });
