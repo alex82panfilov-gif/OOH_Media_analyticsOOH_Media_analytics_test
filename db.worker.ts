@@ -106,12 +106,22 @@ type WorkerMessage =
   | { type: 'LOAD_DATA'; payload: { files: string[]; basePath: string } }
   | { type: 'QUERY'; payload: { filters: FilterState; requestId: number } };
 
-self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
-  await initPromise;
-  const { type, payload } = e.data;
+const getErrorMessage = (err: unknown): string => {
+  if (err instanceof Error) return err.message;
+  return 'Произошла неизвестная ошибка при обработке данных.';
+};
 
-  if (type === 'LOAD_DATA') {
-    try {
+const postError = (err: unknown) => {
+  const message = getErrorMessage(err);
+  self.postMessage({ type: 'ERROR', message });
+};
+
+self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+  try {
+    await initPromise;
+    const { type, payload } = e.data;
+
+    if (type === 'LOAD_DATA') {
       const { files, basePath } = payload;
 
       for (const file of files) {
@@ -143,21 +153,17 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 
       isInitialized = true;
       self.postMessage({ type: 'READY' });
-    } catch (err) {
-      console.error('DuckDB Load Error:', err);
     }
-  }
 
-  if (type === 'QUERY') {
-    if (!isInitialized) return;
+    if (type === 'QUERY') {
+      if (!isInitialized) return;
 
-    try {
       const { filters, requestId } = payload;
       latestRequestId = Math.max(latestRequestId, requestId);
 
       const parsedFilters = filterSchema.safeParse(filters);
       if (!parsedFilters.success) {
-        console.error('DuckDB Query Validation Error:', parsedFilters.error.flatten());
+        postError(new Error('Некорректные параметры фильтрации. Обновите фильтры и повторите запрос.'));
         return;
       }
 
@@ -250,8 +256,9 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         reportData: reportRows,
         options: (optsRows[0] ?? { cities: [], years: [], months: [], formats: [], vendors: [] }) as SmartOptions,
       }));
-    } catch (err) {
-      console.error('DuckDB Query Error:', err);
     }
+  } catch (err) {
+    console.error('DuckDB Worker Error:', err);
+    postError(err);
   }
 };
