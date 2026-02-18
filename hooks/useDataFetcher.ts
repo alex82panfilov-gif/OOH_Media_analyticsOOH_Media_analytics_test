@@ -44,16 +44,21 @@ const parseArrowRows = <T,>(buffer: ArrayBuffer): T[] => {
 };
 
 const normalizeStringArray = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .filter((item) => item !== null && item !== undefined)
+  const toStringValues = (items: unknown[]): string[] => {
+    return items
+      .filter((item): item is string | number | bigint | boolean => {
+        const itemType = typeof item;
+        return item !== null && item !== undefined && ['string', 'number', 'bigint', 'boolean'].includes(itemType);
+      })
       .map((item) => String(item));
+  };
+
+  if (Array.isArray(value)) {
+    return toStringValues(value);
   }
 
   if (value && typeof value === 'object') {
-    return Object.values(value as Record<string, unknown>)
-      .filter((item) => item !== null && item !== undefined)
-      .map((item) => String(item));
+    return toStringValues(Object.values(value as Record<string, unknown>));
   }
 
   return [];
