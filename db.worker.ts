@@ -139,15 +139,15 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         SELECT
           "Адрес в системе Admetrix" as address,
           "Город" as city,
-          CAST("Год" AS INTEGER) as year,
-          "Месяц" as month,
+          COALESCE(TRY_CAST(year AS INTEGER), CAST("Год" AS INTEGER)) as year,
+          COALESCE(CAST(month AS VARCHAR), "Месяц") as month,
           "Продавец" as vendor,
           "Формат поверхности_2" as format,
           TRY_CAST(REPLACE(CAST("GRP (18+) в сутки" AS VARCHAR), ',', '.') AS DOUBLE) as grp,
           TRY_CAST(REPLACE(CAST("OTS (18+) тыс.чел. в сутки" AS VARCHAR), ',', '.') AS DOUBLE) as ots,
           TRY_CAST(REPLACE(CAST("Широта" AS VARCHAR), ',', '.') AS DOUBLE) as lat,
           TRY_CAST(REPLACE(CAST("Долгота" AS VARCHAR), ',', '.') AS DOUBLE) as lng
-        FROM read_parquet([${fileListSql}]);
+        FROM read_parquet([${fileListSql}], hive_partitioning = true, union_by_name = true, filename = true);
       `);
 
       isInitialized = true;
