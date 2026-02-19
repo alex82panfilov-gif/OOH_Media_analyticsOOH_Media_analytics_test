@@ -88,8 +88,12 @@ export const exportToExcel = (data: ReportDataItem[], fileName: string = 'OOH_Ag
   const link = document.createElement('a');
   link.href = url;
   link.download = fullFileName;
+  link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  // В некоторых браузерах мгновенный revokeObjectURL отменяет скачивание.
+  // Небольшая задержка делает поведение стабильным.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 };
