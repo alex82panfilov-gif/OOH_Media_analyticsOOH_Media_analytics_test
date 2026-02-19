@@ -23,20 +23,35 @@ if (!fs.existsSync(destDir)) {
   fs.mkdirSync(destDir, { recursive: true });
 }
 
-try {
-  const files = fs.readdirSync(srcDir);
-  let count = 0;
+const copyRecursive = (srcRoot, dstRoot) => {
+  const entries = fs.readdirSync(srcRoot, { withFileTypes: true });
+  let copied = 0;
 
-  files.forEach(file => {
-    // Копируем только файлы (игнорируем подпапки, если они есть)
-    const srcFile = path.join(srcDir, file);
-    const destFile = path.join(destDir, file);
-    
-    if (fs.lstatSync(srcFile).isFile()) {
-      fs.copyFileSync(srcFile, destFile);
-      count++;
+  entries.forEach((entry) => {
+    const srcPath = path.join(srcRoot, entry.name);
+    const dstPath = path.join(dstRoot, entry.name);
+
+    if (entry.isDirectory()) {
+      if (!fs.existsSync(dstPath)) {
+        fs.mkdirSync(dstPath, { recursive: true });
+      }
+      copied += copyRecursive(srcPath, dstPath);
+      return;
     }
+
+    if (!entry.isFile()) {
+      return;
+    }
+
+    fs.copyFileSync(srcPath, dstPath);
+    copied += 1;
   });
+
+  return copied;
+};
+
+try {
+  const count = copyRecursive(srcDir, destDir);
 
   console.log(`✅ Успешно скопировано файлов: ${count} в папку dist/${DATA_FOLDER}`);
 } catch (err) {

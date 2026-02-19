@@ -18,9 +18,25 @@ try {
     process.exit(1);
   }
 
-  const files = fs.readdirSync(dataDir)
-    .filter(file => file.endsWith('.parquet'))
-    .sort();
+  const collectParquetFiles = (dir, rootDir) => {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    return entries.flatMap((entry) => {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        return collectParquetFiles(fullPath, rootDir);
+      }
+
+      if (!entry.isFile() || !entry.name.endsWith('.parquet')) {
+        return [];
+      }
+
+      return [path.relative(rootDir, fullPath).replaceAll(path.sep, '/')];
+    });
+  };
+
+  const files = collectParquetFiles(dataDir, dataDir).sort();
 
   fs.writeFileSync(outputFile, JSON.stringify(files, null, 2));
   console.log(`✅ Список данных обновлен в ${DATA_FOLDER}: ${files.length} файлов.`);
