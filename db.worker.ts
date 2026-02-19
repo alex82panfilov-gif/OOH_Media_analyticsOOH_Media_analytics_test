@@ -145,7 +145,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
             TRY_CAST(regexp_extract(src.filename, '(?i)(?:^|/)(\\d{4})(?:/|$)', 1) AS INTEGER)
           ) as year,
           COALESCE(
-            src."Месяц",
+            NULLIF(CAST(src."Месяц" AS VARCHAR), ''),
             NULLIF(regexp_extract(src.filename, '(?i)(?:^|/)month=([^/]+)(?:/|$)', 1), '')
           ) as month,
           src."Продавец" as vendor,
