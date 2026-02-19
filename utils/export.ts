@@ -1,11 +1,52 @@
 import * as XLSX from 'xlsx';
 import { ReportDataItem } from '../types';
 
+const monthAliases: Record<string, number> = {
+  янв: 0,
+  январь: 0,
+  feb: 1,
+  фев: 1,
+  февраль: 1,
+  мар: 2,
+  март: 2,
+  апр: 3,
+  апрель: 3,
+  май: 4,
+  июн: 5,
+  июнь: 5,
+  июл: 6,
+  июль: 6,
+  авг: 7,
+  август: 7,
+  сен: 8,
+  сентябрь: 8,
+  окт: 9,
+  октябрь: 9,
+  ноя: 10,
+  ноябрь: 10,
+  дек: 11,
+  декабрь: 11,
+};
+
+const toSafeString = (value: unknown) => (typeof value === 'string' ? value : String(value ?? ''));
+
 // Помощник для определения порядка месяцев
-const getMonthIndex = (monthStr: string) => {
-  const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-  const m = monthStr.toLowerCase().slice(0, 3);
-  return months.findIndex(x => x === m);
+const getMonthIndex = (monthValue: unknown) => {
+  if (typeof monthValue === 'number' && Number.isFinite(monthValue)) {
+    if (monthValue >= 1 && monthValue <= 12) return monthValue - 1;
+    if (monthValue >= 0 && monthValue <= 11) return monthValue;
+  }
+
+  const monthStr = toSafeString(monthValue).trim().toLowerCase();
+  if (!monthStr) return Number.MAX_SAFE_INTEGER;
+
+  const numericMonth = Number(monthStr);
+  if (Number.isInteger(numericMonth) && numericMonth >= 1 && numericMonth <= 12) {
+    return numericMonth - 1;
+  }
+
+  const shortKey = monthStr.slice(0, 3);
+  return monthAliases[monthStr] ?? monthAliases[shortKey] ?? Number.MAX_SAFE_INTEGER;
 };
 
 export const exportToExcel = (data: ReportDataItem[], fileName: string = 'OOH_Aggregated_Report') => {
@@ -57,7 +98,9 @@ export const exportToExcel = (data: ReportDataItem[], fileName: string = 'OOH_Ag
   // --- ЛИСТ 3: ДЕТАЛЬНАЯ ДИНАМИКА (ГОРОД + ФОРМАТ + МЕСЯЦ) ---
   const dynReportData = [...data]
     .sort((a, b) => {
-      if (a.city !== b.city) return a.city.localeCompare(b.city);
+      const cityA = toSafeString(a.city);
+      const cityB = toSafeString(b.city);
+      if (cityA !== cityB) return cityA.localeCompare(cityB, 'ru');
       if (a.year !== b.year) return a.year - b.year;
       return getMonthIndex(a.month) - getMonthIndex(b.month);
     })
