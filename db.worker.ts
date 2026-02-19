@@ -139,8 +139,15 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         SELECT
           src."Адрес в системе Admetrix" as address,
           src."Город" as city,
-          COALESCE(TRY_CAST(src.year AS INTEGER), TRY_CAST(src."Год" AS INTEGER)) as year,
-          COALESCE(CAST(src.month AS VARCHAR), src."Месяц") as month,
+          COALESCE(
+            TRY_CAST(src."Год" AS INTEGER),
+            TRY_CAST(regexp_extract(src.filename, '(?i)(?:^|/)year=(\\d{4})(?:/|$)', 1) AS INTEGER),
+            TRY_CAST(regexp_extract(src.filename, '(?i)(?:^|/)(\\d{4})(?:/|$)', 1) AS INTEGER)
+          ) as year,
+          COALESCE(
+            src."Месяц",
+            NULLIF(regexp_extract(src.filename, '(?i)(?:^|/)month=([^/]+)(?:/|$)', 1), '')
+          ) as month,
           src."Продавец" as vendor,
           src."Формат поверхности_2" as format,
           TRY_CAST(REPLACE(CAST(src."GRP (18+) в сутки" AS VARCHAR), ',', '.') AS DOUBLE) as grp,
