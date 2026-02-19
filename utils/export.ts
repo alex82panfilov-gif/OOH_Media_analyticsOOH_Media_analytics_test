@@ -75,5 +75,21 @@ export const exportToExcel = (data: ReportDataItem[], fileName: string = 'OOH_Ag
   XLSX.utils.book_append_sheet(workbook, wsDyn, 'Динамика_Детально');
 
   const dateStr = new Date().toISOString().split('T')[0];
-  XLSX.writeFile(workbook, `${fileName}_${dateStr}.xlsx`);
+  const fullFileName = `${fileName}_${dateStr}.xlsx`;
+
+  // XLSX.writeFile может не работать в некоторых браузерах/сборках,
+  // поэтому формируем Blob и инициируем скачивание вручную.
+  const workbookBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([workbookBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fullFileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
