@@ -14,8 +14,6 @@ const parseFiltersFromUrl = (): FilterState => {
   }, { ...emptyFilters });
 };
 
-const hasAnyFilters = (filters: FilterState): boolean => FILTER_KEYS.some((key) => filters[key].length > 0);
-
 export const useFilterUrlSync = () => {
   const initializedRef = useRef(false);
   const filters = useDataStore((state) => state.filters);
@@ -27,11 +25,19 @@ export const useFilterUrlSync = () => {
     }
 
     const parsedFilters = parseFiltersFromUrl();
-    if (hasAnyFilters(parsedFilters)) {
-      replaceFilters(parsedFilters);
-    }
+    replaceFilters(parsedFilters);
+
+    const handlePopState = () => {
+      replaceFilters(parseFiltersFromUrl());
+    };
+
+    window.addEventListener('popstate', handlePopState);
 
     initializedRef.current = true;
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [replaceFilters]);
 
   useEffect(() => {

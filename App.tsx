@@ -9,9 +9,11 @@ import { useFilterUrlSync } from './hooks/useFilterUrlSync';
 import { AuthGate } from './components/containers/AuthGate';
 import { TopNav } from './components/containers/TopNav';
 import { FilterBar } from './components/containers/FilterBar';
-import { AnalyticsTab } from './components/containers/AnalyticsTab';
-import { MapTab } from './components/containers/MapTab';
-import { ReportsTab } from './components/containers/ReportsTab';
+import { TabLoadingFallback } from './components/ui/TabLoadingFallback';
+
+const AnalyticsTab = React.lazy(() => import('./components/containers/AnalyticsTab').then((module) => ({ default: module.AnalyticsTab })));
+const MapTab = React.lazy(() => import('./components/containers/MapTab').then((module) => ({ default: module.MapTab })));
+const ReportsTab = React.lazy(() => import('./components/containers/ReportsTab').then((module) => ({ default: module.ReportsTab })));
 
 const App: React.FC = () => {
   const userRole = useAuthStore((state) => state.userRole);
@@ -57,6 +59,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-gray-900">
+      <div className={`fixed top-0 left-0 h-1 bg-teal-500 z-[60] transition-all duration-500 ${isLoading ? 'w-full opacity-100' : 'w-0 opacity-0'}`} />
       <TopNav activeTab={activeTab} userRole={userRole} setActiveTab={setActiveTab} logout={logout} />
 
       <FilterBar
@@ -69,19 +72,21 @@ const App: React.FC = () => {
       />
 
       <main className="max-w-[1600px] mx-auto w-full p-6 space-y-6">
-        {activeTab === TabView.ANALYTICS && (
-          <AnalyticsTab
-            kpis={kpis}
-            trendData={trendData}
-            matrixData={matrixData}
-            mapData={mapData}
-            isLoading={isLoading}
-          />
-        )}
+        <React.Suspense fallback={<TabLoadingFallback />}>
+          {activeTab === TabView.ANALYTICS && (
+            <AnalyticsTab
+              kpis={kpis}
+              trendData={trendData}
+              matrixData={matrixData}
+              mapData={mapData}
+              isLoading={isLoading}
+            />
+          )}
 
-        {activeTab === TabView.MAP && userRole === 'ADMIN' && <MapTab data={mapData} isLoading={isLoading} />}
+          {activeTab === TabView.MAP && userRole === 'ADMIN' && <MapTab data={mapData} isLoading={isLoading} />}
 
-        {activeTab === TabView.REPORTS && userRole === 'ADMIN' && <ReportsTab data={reportData} isLoading={isLoading} />}
+          {activeTab === TabView.REPORTS && userRole === 'ADMIN' && <ReportsTab data={reportData} isLoading={isLoading} />}
+        </React.Suspense>
       </main>
     </div>
   );
