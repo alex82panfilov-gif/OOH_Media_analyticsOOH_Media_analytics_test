@@ -114,4 +114,9 @@ export interface FilterState {
 
 export type UserRole = 'ADMIN' | 'GUEST' | null;
 
-export enum TabView { ANALYTICS = 'ANALYTICS', MAP = 'MAP', REPORTS = 'REPORTS' }
+export enum TabView {
+  ANALYTICS = 'ANALYTICS',
+  MAP = 'MAP',
+  REPORTS = 'REPORTS',
+  MEDIA_PLAN = 'MEDIA_PLAN',
+}
