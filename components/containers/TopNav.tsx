@@ -18,6 +18,7 @@ export const TopNav: React.FC<TopNavProps> = ({ activeTab, userRole, setActiveTa
           <>
             <button onClick={() => setActiveTab(TabView.MAP)} className={`px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === TabView.MAP ? 'bg-white text-slate-900 shadow-sm' : 'text-gray-500'}`}>Карта</button>
             <button onClick={() => setActiveTab(TabView.REPORTS)} className={`px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === TabView.REPORTS ? 'bg-white text-slate-900 shadow-sm' : 'text-gray-500'}`}>Отчеты</button>
+            <button onClick={() => setActiveTab(TabView.MEDIAPLAN)} className={`px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === TabView.MEDIAPLAN ? 'bg-white text-slate-900 shadow-sm' : 'text-gray-500'}`}>Медиаплан</button>
           </>
         )}
       </nav>

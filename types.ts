@@ -93,6 +93,19 @@ export interface ReportDataItem {
   sideCount: number;
 }
 
+export interface MediaPlanItem {
+  id: string;
+  source: 'MAP' | 'REPORT';
+  address: string;
+  city: string;
+  format: string;
+  vendor: string;
+  month: string;
+  year: number;
+  avgGrp: number;
+  avgOts: number;
+}
+
 export interface QueryResult {
   type: 'QUERY_RESULT';
   requestId: number;
@@ -114,4 +127,4 @@ export interface FilterState {
 
 export type UserRole = 'ADMIN' | 'GUEST' | null;
 
-export enum TabView { ANALYTICS = 'ANALYTICS', MAP = 'MAP', REPORTS = 'REPORTS' }
+export enum TabView { ANALYTICS = 'ANALYTICS', MAP = 'MAP', REPORTS = 'REPORTS', MEDIAPLAN = 'MEDIAPLAN' }

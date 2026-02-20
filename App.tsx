@@ -14,6 +14,7 @@ import { TabLoadingFallback } from './components/ui/TabLoadingFallback';
 const AnalyticsTab = React.lazy(() => import('./components/containers/AnalyticsTab').then((module) => ({ default: module.AnalyticsTab })));
 const MapTab = React.lazy(() => import('./components/containers/MapTab').then((module) => ({ default: module.MapTab })));
 const ReportsTab = React.lazy(() => import('./components/containers/ReportsTab').then((module) => ({ default: module.ReportsTab })));
+const MediaPlanTab = React.lazy(() => import('./components/containers/MediaPlanTab').then((module) => ({ default: module.MediaPlanTab })));
 
 const App: React.FC = () => {
   const userRole = useAuthStore((state) => state.userRole);
@@ -86,6 +87,7 @@ const App: React.FC = () => {
           {activeTab === TabView.MAP && userRole === 'ADMIN' && <MapTab data={mapData} isLoading={isLoading} />}
 
           {activeTab === TabView.REPORTS && userRole === 'ADMIN' && <ReportsTab data={reportData} isLoading={isLoading} />}
+          {activeTab === TabView.MEDIAPLAN && userRole === 'ADMIN' && <MediaPlanTab />}
         </React.Suspense>
       </main>
     </div>
