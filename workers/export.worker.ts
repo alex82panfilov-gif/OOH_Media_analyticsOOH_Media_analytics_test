@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import * as XLSX from 'xlsx';
-import { ReportDataItem } from '../types';
+import { MediaPlanExportItem, ReportDataItem } from '../types';
 
 const monthAliases: Record<string, number> = { янв: 0, январь: 0, feb: 1, фев: 1, февраль: 1, мар: 2, март: 2, апр: 3, апрель: 3, май: 4, июн: 5, июнь: 5, июл: 6, июль: 6, авг: 7, август: 7, сен: 8, сентябрь: 8, окт: 9, октябрь: 9, ноя: 10, ноябрь: 10, дек: 11, декабрь: 11 };
 const toSafeString = (value: unknown) => (typeof value === 'string' ? value : String(value ?? ''));
@@ -18,8 +18,8 @@ const getMonthIndex = (monthValue: unknown) => {
   return monthAliases[monthStr] ?? monthAliases[shortKey] ?? Number.MAX_SAFE_INTEGER;
 };
 
-self.onmessage = (event: MessageEvent<{ data: ReportDataItem[]; fileName: string }>) => {
-  const { data, fileName } = event.data;
+self.onmessage = (event: MessageEvent<{ data: ReportDataItem[]; mediaPlan?: MediaPlanExportItem[]; fileName: string }>) => {
+  const { data, mediaPlan = [], fileName } = event.data;
   if (!data || data.length === 0) {
     self.postMessage({ error: 'EMPTY_DATA' });
     return;
@@ -75,6 +75,85 @@ self.onmessage = (event: MessageEvent<{ data: ReportDataItem[]; fileName: string
   const wsDyn = XLSX.utils.json_to_sheet(dynReportData);
   wsDyn['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(workbook, wsDyn, 'Динамика_Детально');
+
+  if (mediaPlan.length > 0) {
+    const sortedPlan = [...mediaPlan].sort((a, b) => {
+      const cityCmp = toSafeString(a.city).localeCompare(toSafeString(b.city), 'ru');
+      if (cityCmp !== 0) return cityCmp;
+      return toSafeString(a.title).localeCompare(toSafeString(b.title), 'ru');
+    });
+
+    const hasManyCities = new Set(sortedPlan.map((item) => item.city)).size > 1;
+    const planRows: Array<Array<string | number>> = [];
+
+    if (hasManyCities) {
+      const cityGroups = new Map<string, MediaPlanExportItem[]>();
+      sortedPlan.forEach((item) => {
+        const key = item.city || 'Не указан';
+        const group = cityGroups.get(key) ?? [];
+        group.push(item);
+        cityGroups.set(key, group);
+      });
+
+      Array.from(cityGroups.entries()).forEach(([city, items], cityIndex) => {
+        items.forEach((item) => {
+          planRows.push([
+            city,
+            item.title,
+            item.format,
+            item.period,
+            Number((item.grp || 0).toFixed(3)),
+            Number((item.ots || 0).toFixed(1)),
+          ]);
+        });
+
+        const grpAvg = items.reduce((sum, item) => sum + (item.grp || 0), 0) / items.length;
+        const otsTotal = items.reduce((sum, item) => sum + (item.ots || 0), 0);
+        planRows.push([
+          `${city} — Итого`,
+          '',
+          '',
+          '',
+          Number(grpAvg.toFixed(3)),
+          Number(otsTotal.toFixed(1)),
+        ]);
+
+        if (cityIndex < cityGroups.size - 1) {
+          planRows.push(['', '', '', '', '', '']);
+        }
+      });
+    } else {
+      sortedPlan.forEach((item) => {
+        planRows.push([
+          item.city,
+          item.title,
+          item.format,
+          item.period,
+          Number((item.grp || 0).toFixed(3)),
+          Number((item.ots || 0).toFixed(1)),
+        ]);
+      });
+    }
+
+    const totalGrpAvg = sortedPlan.reduce((sum, item) => sum + (item.grp || 0), 0) / sortedPlan.length;
+    const totalOts = sortedPlan.reduce((sum, item) => sum + (item.ots || 0), 0);
+
+    planRows.push(['ИТОГО', '', '', '', Number(totalGrpAvg.toFixed(3)), Number(totalOts.toFixed(1))]);
+
+    const wsMediaPlan = XLSX.utils.aoa_to_sheet([
+      ['МЕДИАПЛАН'],
+      ['Дата выгрузки', new Date().toLocaleDateString('ru-RU')],
+      ['Выбрано поверхностей', sortedPlan.length],
+      ['Выбрано городов', new Set(sortedPlan.map((item) => item.city)).size],
+      ['Средний GRP', Number(totalGrpAvg.toFixed(3))],
+      ['Total OTS', Number(totalOts.toFixed(1))],
+      [],
+      ['Город', 'Объект/адрес', 'Формат', 'Период', 'Средний GRP', 'OTS'],
+      ...planRows,
+    ]);
+    wsMediaPlan['!cols'] = [{ wch: 20 }, { wch: 55 }, { wch: 14 }, { wch: 20 }, { wch: 14 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(workbook, wsMediaPlan, 'Медиаплан');
+  }
 
   const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   const dateStr = new Date().toISOString().split('T')[0];

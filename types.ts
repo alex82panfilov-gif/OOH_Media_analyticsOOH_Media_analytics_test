@@ -93,6 +93,17 @@ export interface ReportDataItem {
   sideCount: number;
 }
 
+export interface MediaPlanExportItem {
+  id: string;
+  title: string;
+  city: string;
+  format: string;
+  period: string;
+  grp: number;
+  ots: number;
+  source: 'map' | 'report';
+}
+
 export interface QueryResult {
   type: 'QUERY_RESULT';
   requestId: number;

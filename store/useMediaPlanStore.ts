@@ -1,15 +1,7 @@
 import { create } from 'zustand';
+import { MediaPlanExportItem } from '../types';
 
-export interface MediaPlanItem {
-  id: string;
-  title: string;
-  city: string;
-  format: string;
-  period: string;
-  grp: number;
-  ots: number;
-  source: 'map' | 'report';
-}
+export type MediaPlanItem = MediaPlanExportItem;
 
 interface MediaPlanState {
   items: MediaPlanItem[];
