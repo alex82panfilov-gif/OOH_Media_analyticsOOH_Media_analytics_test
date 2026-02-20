@@ -9,9 +9,20 @@ export const MediaPlanTab: React.FC = () => {
   const clear = useMediaPlanStore((state) => state.clear);
 
   const totals = React.useMemo(() => ({
-    grp: items.reduce((sum, item) => sum + item.grp, 0),
+    grp: items.length > 0 ? items.reduce((sum, item) => sum + item.grp, 0) / items.length : 0,
     ots: items.reduce((sum, item) => sum + item.ots, 0),
   }), [items]);
+
+  const groupedByCity = React.useMemo(() => {
+    const grouped = new Map<string, typeof items>();
+    items.forEach((item) => {
+      const key = item.city || 'Не указан';
+      grouped.set(key, [...(grouped.get(key) ?? []), item]);
+    });
+    return Array.from(grouped.entries()).sort(([cityA], [cityB]) => cityA.localeCompare(cityB, 'ru'));
+  }, [items]);
+
+  const hasManyCities = groupedByCity.length > 1;
 
   if (items.length === 0) {
     return (
@@ -33,8 +44,8 @@ export const MediaPlanTab: React.FC = () => {
         <table className="min-w-full text-xs">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left">Объект</th>
               <th className="px-4 py-3 text-left">Город</th>
+              <th className="px-4 py-3 text-left">Объект</th>
               <th className="px-4 py-3 text-left">Формат</th>
               <th className="px-4 py-3 text-center">Период</th>
               <th className="px-4 py-3 text-right">GRP</th>
@@ -43,22 +54,39 @@ export const MediaPlanTab: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-3 font-semibold">{item.title}</td>
-                <td className="px-4 py-3">{item.city}</td>
-                <td className="px-4 py-3">{item.format}</td>
-                <td className="px-4 py-3 text-center">{item.period}</td>
-                <td className="px-4 py-3 text-right text-teal-700 font-bold">{formatNumberRussian(item.grp)}</td>
-                <td className="px-4 py-3 text-right">{formatNumberRussian(item.ots, 1)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end">
-                    <button onClick={() => removeItem(item.id)} className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" aria-label="Удалить из медиаплана">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+            {groupedByCity.map(([city, cityItems]) => (
+              <React.Fragment key={city}>
+                {cityItems.map((item) => (
+                  <tr key={item.id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3">{item.city}</td>
+                    <td className="px-4 py-3 font-semibold">{item.title}</td>
+                    <td className="px-4 py-3">{item.format}</td>
+                    <td className="px-4 py-3 text-center">{item.period}</td>
+                    <td className="px-4 py-3 text-right text-teal-700 font-bold">{formatNumberRussian(item.grp)}</td>
+                    <td className="px-4 py-3 text-right">{formatNumberRussian(item.ots, 1)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <button onClick={() => removeItem(item.id)} className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" aria-label="Удалить из медиаплана">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {hasManyCities && (
+                  <tr className="border-t border-gray-200 bg-slate-50/70">
+                    <td className="px-4 py-2 font-bold">{city}</td>
+                    <td className="px-4 py-2 text-xs uppercase text-gray-500" colSpan={3}>Итого по городу</td>
+                    <td className="px-4 py-2 text-right font-bold text-teal-700">
+                      {formatNumberRussian(cityItems.reduce((sum, item) => sum + item.grp, 0) / cityItems.length)}
+                    </td>
+                    <td className="px-4 py-2 text-right font-bold">
+                      {formatNumberRussian(cityItems.reduce((sum, item) => sum + item.ots, 0), 1)}
+                    </td>
+                    <td className="px-4 py-2" />
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
           <tfoot className="bg-gray-50 border-t border-gray-200">

@@ -3,6 +3,7 @@ import { ChevronDown, Filter } from 'lucide-react';
 import { MultiSelect } from '../MultiSelect';
 import { FilterState, ReportDataItem, SmartOptions, UserRole } from '../../types';
 import { exportToExcel } from '../../utils/export';
+import { useMediaPlanStore } from '../../store/useMediaPlanStore';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -23,6 +24,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isExporting, setIsExporting] = React.useState(false);
+  const mediaPlanItems = useMediaPlanStore((state) => state.items);
 
   const handleCityChange = useCallback((value: string[]) => setFilters({ city: value }), [setFilters]);
   const handleYearChange = useCallback((value: string[]) => setFilters({ year: value }), [setFilters]);
@@ -34,11 +36,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const handleExport = useCallback(async () => {
     try {
       setIsExporting(true);
-      await exportToExcel(reportData);
+      await exportToExcel(reportData, mediaPlanItems);
     } finally {
       setIsExporting(false);
     }
-  }, [reportData]);
+  }, [reportData, mediaPlanItems]);
 
   return (
     <section className="bg-white border-b border-gray-200 sticky top-[73px] z-30 py-4 shadow-sm px-6">

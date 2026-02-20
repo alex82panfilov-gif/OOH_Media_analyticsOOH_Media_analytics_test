@@ -1,4 +1,4 @@
-import { ReportDataItem } from '../types';
+import { MediaPlanExportItem, ReportDataItem } from '../types';
 
 interface WorkerSuccessMessage {
   buffer: ArrayBuffer;
@@ -9,7 +9,11 @@ interface WorkerErrorMessage {
   error: string;
 }
 
-export const exportToExcel = (data: ReportDataItem[], fileName: string = 'OOH_Aggregated_Report'): Promise<void> => {
+export const exportToExcel = (
+  data: ReportDataItem[],
+  mediaPlan: MediaPlanExportItem[],
+  fileName: string = 'OOH_Aggregated_Report',
+): Promise<void> => {
   if (!data || data.length === 0) return Promise.resolve();
 
   const worker = new Worker(new URL('../workers/export.worker.ts', import.meta.url), { type: 'module' });
@@ -46,6 +50,6 @@ export const exportToExcel = (data: ReportDataItem[], fileName: string = 'OOH_Ag
       reject(error);
     };
 
-    worker.postMessage({ data, fileName });
+    worker.postMessage({ data, mediaPlan, fileName });
   });
 };
