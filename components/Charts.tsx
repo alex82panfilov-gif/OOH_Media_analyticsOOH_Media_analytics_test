@@ -5,17 +5,69 @@ import {
   BarChart, Bar, Treemap, LabelList
 } from 'recharts';
 
+
+type TrendPoint = {
+  name: string;
+  avgGrp: number | null;
+  trend: number;
+};
+
+const getTrendProjection = (values: number[], targetIndex: number): number => {
+  if (values.length === 0) return 0;
+  if (values.length === 1) return values[0];
+
+  const n = values.length;
+  const meanX = (n - 1) / 2;
+  const meanY = values.reduce((sum, value) => sum + value, 0) / n;
+
+  let numerator = 0;
+  let denominator = 0;
+
+  for (let i = 0; i < n; i += 1) {
+    const deltaX = i - meanX;
+    numerator += deltaX * (values[i] - meanY);
+    denominator += deltaX * deltaX;
+  }
+
+  const slope = denominator === 0 ? 0 : numerator / denominator;
+  const intercept = meanY - slope * meanX;
+
+  return intercept + slope * targetIndex;
+};
+
 // --- TREND CHART ---
 const TrendChartComponent: React.FC<{ data: TrendDataItem[] }> = ({ data }) => {
   const chartData = React.useMemo(() => {
     const monthOrder = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-    return [...data].sort((a, b) => {
+    const sorted = [...data].sort((a, b) => {
       if (a.year !== b.year) return a.year - b.year;
       return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
-    }).map(d => ({
+    });
+
+    const values = sorted.map((d) => d.avgGrp);
+
+    const points: TrendPoint[] = sorted.map((d, index) => ({
       name: `${d.month} ${d.year}`,
-      avgGrp: Number(d.avgGrp.toFixed(2))
+      avgGrp: Number(d.avgGrp.toFixed(2)),
+      trend: Number(getTrendProjection(values, index).toFixed(2)),
     }));
+
+    if (sorted.length === 0) {
+      return points;
+    }
+
+    const last = sorted[sorted.length - 1];
+    const currentMonthIndex = monthOrder.indexOf(last.month);
+    const nextMonthIndex = currentMonthIndex === -1 ? 0 : (currentMonthIndex + 1) % 12;
+    const yearShift = currentMonthIndex === 11 ? 1 : 0;
+
+    points.push({
+      name: `${monthOrder[nextMonthIndex]} ${last.year + yearShift} (прогноз)`,
+      avgGrp: null,
+      trend: Number(getTrendProjection(values, sorted.length).toFixed(2)),
+    });
+
+    return points;
   }, [data]);
 
   return (
@@ -49,6 +101,17 @@ const TrendChartComponent: React.FC<{ data: TrendDataItem[] }> = ({ data }) => {
           >
             <LabelList dataKey="avgGrp" position="top" offset={12} style={{ fontSize: 10, fontWeight: 'bold', fill: '#0f172a' }} />
           </Line>
+          <Line
+            type="monotone"
+            dataKey="trend"
+            stroke="#0ea5e9"
+            strokeDasharray="6 6"
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 5 }}
+            name="Прогноз на след. месяц"
+            animationDuration={500}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>

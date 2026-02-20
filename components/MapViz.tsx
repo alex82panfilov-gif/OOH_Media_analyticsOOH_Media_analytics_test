@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, useMap, AttributionControl } from 'react-leafl
 import L from 'leaflet';
 import Supercluster from 'supercluster';
 import { formatNumberRussian } from '../utils/data';
-import { Navigation, MousePointer2, Info } from 'lucide-react';
+import { Navigation, MousePointer2, Info, Search, Loader2 } from 'lucide-react';
 import { MapDataItem } from '../types';
 import { useMediaPlanStore } from '../store/useMediaPlanStore';
 
@@ -17,6 +17,12 @@ type PointProperties = MapDataItem;
 type ClusterPoint = Supercluster.PointFeature<PointProperties>;
 type ClusterFeature = Supercluster.ClusterFeature<ClusterProperties>;
 type ClusterOrPoint = ClusterPoint | ClusterFeature;
+
+type NominatimResult = {
+  lat: string;
+  lon: string;
+  display_name: string;
+};
 
 const FORMAT_COLORS: Record<string, string> = {
   BB: '#2563eb', DBB: '#0891b2', CB: '#ea580c',
@@ -70,11 +76,18 @@ const createPointIcon = (color: string) => {
   });
 };
 
-const MapController = ({ center }: { center: [number, number] }) => {
+const MapController = ({ center, targetCenter }: { center: [number, number]; targetCenter: [number, number] | null }) => {
   const map = useMap();
+
   useEffect(() => {
     map.flyTo(center, map.getZoom(), { duration: 1.5 });
   }, [center, map]);
+
+  useEffect(() => {
+    if (!targetCenter) return;
+    map.flyTo(targetCenter, Math.max(map.getZoom(), 14), { duration: 1.2 });
+  }, [map, targetCenter]);
+
   return null;
 };
 
@@ -139,6 +152,11 @@ const ClustersLayer = ({
 
 export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [targetCenter, setTargetCenter] = useState<[number, number] | null>(null);
+
   const toggleItem = useMediaPlanStore((state) => state.toggleItem);
   const mediaPlanItems = useMediaPlanStore((state) => state.items);
 
@@ -171,11 +189,94 @@ export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
     ? mediaPlanItems.some((item) => item.id === `map:${currentSelection.address}`)
     : false;
 
+  const handleGeosearch = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+
+    if (!query) {
+      setSearchError('Введите адрес для поиска.');
+      return;
+    }
+
+    setSearchError(null);
+    setIsSearching(true);
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            'Accept-Language': 'ru',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Nominatim status: ${response.status}`);
+      }
+
+      const results = await response.json() as NominatimResult[];
+      const topResult = results[0];
+
+      if (!topResult) {
+        setSearchError('Адрес не найден. Попробуйте уточнить запрос.');
+        return;
+      }
+
+      const lat = Number(topResult.lat);
+      const lng = Number(topResult.lon);
+
+      if (Number.isNaN(lat) || Number.isNaN(lng)) {
+        setSearchError('Координаты адреса не распознаны.');
+        return;
+      }
+
+      setTargetCenter([lat, lng]);
+
+      const nearest: MapDataItem | null = data.reduce((closest: MapDataItem | null, point) => {
+        if (!closest) return point;
+        const closestDistance = (closest.lat - lat) ** 2 + (closest.lng - lng) ** 2;
+        const currentDistance = (point.lat - lat) ** 2 + (point.lng - lng) ** 2;
+        return currentDistance < closestDistance ? point : closest;
+      }, null);
+
+      if (nearest) {
+        setSelectedAddress(nearest.address);
+      }
+    } catch (error) {
+      console.error('Nominatim geosearch failed', error);
+      setSearchError('Ошибка геопоиска. Проверьте сеть или попробуйте позже.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[650px]">
       <div className="flex-grow relative rounded-[2.5rem] overflow-hidden border border-slate-200 z-10 shadow-inner bg-slate-50">
+        <form onSubmit={handleGeosearch} className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur rounded-2xl border border-slate-200 shadow-lg p-3 w-[320px] max-w-[calc(100%-2rem)]">
+          <div className="flex items-center gap-2">
+            <Search size={14} className="text-slate-500" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Найти адрес через OpenStreetMap"
+              className="flex-1 text-xs px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="text-[10px] font-black uppercase px-3 py-2 rounded-lg bg-slate-900 text-white disabled:opacity-60"
+            >
+              {isSearching ? <Loader2 size={14} className="animate-spin" /> : 'Найти'}
+            </button>
+          </div>
+          {searchError && <div className="text-[10px] text-red-600 mt-2">{searchError}</div>}
+          <div className="text-[9px] text-slate-500 mt-2">Геопоиск: Nominatim (OSM), бесплатный API с лимитами.</div>
+        </form>
+
         <MapContainer center={center} zoom={11} style={{ height: '100%', width: '100%' }} attributionControl={false}>
-          <MapController center={center} />
+          <MapController center={center} targetCenter={targetCenter} />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <AttributionControl position="bottomright" prefix="OOH Analytics" />
           <ClustersLayer index={index} onSelect={setSelectedAddress} />
