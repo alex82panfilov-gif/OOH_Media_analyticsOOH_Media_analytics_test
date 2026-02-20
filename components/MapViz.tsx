@@ -248,6 +248,8 @@ export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
                   grp: currentSelection.avgGrp,
                   ots: currentSelection.avgOts,
                   source: 'map',
+                  lat: currentSelection.lat,
+                  lng: currentSelection.lng,
                 })}
                 className={`w-full py-4 rounded-2xl text-xs font-black uppercase transition-all ${isInPlan ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
               >

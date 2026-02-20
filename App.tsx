@@ -15,6 +15,7 @@ const AnalyticsTab = React.lazy(() => import('./components/containers/AnalyticsT
 const MapTab = React.lazy(() => import('./components/containers/MapTab').then((module) => ({ default: module.MapTab })));
 const ReportsTab = React.lazy(() => import('./components/containers/ReportsTab').then((module) => ({ default: module.ReportsTab })));
 const MediaPlanTab = React.lazy(() => import('./components/containers/MediaPlanTab').then((module) => ({ default: module.MediaPlanTab })));
+const AddressProgramTab = React.lazy(() => import('./components/containers/AddressProgramTab').then((module) => ({ default: module.AddressProgramTab })));
 
 const App: React.FC = () => {
   const userRole = useAuthStore((state) => state.userRole);
@@ -89,6 +90,8 @@ const App: React.FC = () => {
           {activeTab === TabView.REPORTS && userRole === 'ADMIN' && <ReportsTab data={reportData} isLoading={isLoading} />}
 
           {activeTab === TabView.MEDIA_PLAN && userRole === 'ADMIN' && <MediaPlanTab />}
+
+          {activeTab === TabView.ADDRESS_PROGRAM && userRole === 'ADMIN' && <AddressProgramTab />}
         </React.Suspense>
       </main>
     </div>
