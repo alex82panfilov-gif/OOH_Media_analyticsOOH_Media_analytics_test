@@ -2,6 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { formatNumberRussian } from '../utils/data';
 import { ReportDataItem } from '../types';
+import { useMediaPlanStore } from '../store/mediaPlanStore';
 
 const STORAGE_KEY = 'report-table-visible-columns';
 const DEFAULT_VISIBLE_COLUMNS = {
@@ -14,6 +15,9 @@ const DEFAULT_VISIBLE_COLUMNS = {
 export const PivotReports: React.FC<{ data: ReportDataItem[] }> = ({ data }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const [visibleColumns, setVisibleColumns] = React.useState(DEFAULT_VISIBLE_COLUMNS);
+  const addItem = useMediaPlanStore((state) => state.addItem);
+  const removeItem = useMediaPlanStore((state) => state.removeItem);
+  const isInPlan = useMediaPlanStore((state) => state.isInPlan);
 
   React.useEffect(() => {
     try {
@@ -93,6 +97,7 @@ export const PivotReports: React.FC<{ data: ReportDataItem[] }> = ({ data }) => 
                 {visibleColumns.format && <th className="px-4 py-3 text-left">Формат</th>}
                 {visibleColumns.period && <th className="px-4 py-3 text-center">Период</th>}
                 {visibleColumns.avgGrp && <th className="px-4 py-3 text-right">Средний GRP</th>}
+                <th className="px-4 py-3 text-right">В план</th>
               </tr>
             </thead>
             <tbody style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
@@ -104,6 +109,33 @@ export const PivotReports: React.FC<{ data: ReportDataItem[] }> = ({ data }) => 
                     {visibleColumns.format && <td className="px-4 flex-1 text-gray-400">{row.format}</td>}
                     {visibleColumns.period && <td className="px-4 flex-1 text-center">{row.month} {row.year}</td>}
                     {visibleColumns.avgGrp && <td className="px-4 flex-1 text-right font-black text-teal-600">{formatNumberRussian(row.avgGrp)}</td>}
+                    <td className="px-4 w-[90px] text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const id = `report:${row.city}:${row.format}:${row.year}:${row.month}`;
+                          if (isInPlan(id)) {
+                            removeItem(id);
+                            return;
+                          }
+                          addItem({
+                            id,
+                            source: 'REPORT',
+                            address: `${row.city}, ${row.format}`,
+                            city: row.city,
+                            format: row.format,
+                            vendor: 'Сводный отчет',
+                            month: row.month,
+                            year: row.year,
+                            avgGrp: row.avgGrp,
+                            avgOts: 0,
+                          });
+                        }}
+                        className="w-7 h-7 rounded-full border border-teal-200 text-teal-700 font-black hover:bg-teal-50"
+                      >
+                        {isInPlan(`report:${row.city}:${row.format}:${row.year}:${row.month}`) ? '−' : '+'}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
