@@ -102,6 +102,8 @@ export interface MediaPlanExportItem {
   grp: number;
   ots: number;
   source: 'map' | 'report';
+  lat?: number;
+  lng?: number;
 }
 
 export interface QueryResult {
@@ -130,4 +132,5 @@ export enum TabView {
   MAP = 'MAP',
   REPORTS = 'REPORTS',
   MEDIA_PLAN = 'MEDIA_PLAN',
+  ADDRESS_PROGRAM = 'ADDRESS_PROGRAM',
 }
