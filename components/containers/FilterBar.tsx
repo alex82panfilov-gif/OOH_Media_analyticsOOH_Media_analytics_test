@@ -22,12 +22,23 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   resetFilters,
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isExporting, setIsExporting] = React.useState(false);
 
   const handleCityChange = useCallback((value: string[]) => setFilters({ city: value }), [setFilters]);
   const handleYearChange = useCallback((value: string[]) => setFilters({ year: value }), [setFilters]);
   const handleMonthChange = useCallback((value: string[]) => setFilters({ month: value }), [setFilters]);
   const handleFormatChange = useCallback((value: string[]) => setFilters({ format: value }), [setFilters]);
   const handleVendorChange = useCallback((value: string[]) => setFilters({ vendor: value }), [setFilters]);
+
+
+  const handleExport = useCallback(async () => {
+    try {
+      setIsExporting(true);
+      await exportToExcel(reportData);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [reportData]);
 
   return (
     <section className="bg-white border-b border-gray-200 sticky top-[73px] z-30 py-4 shadow-sm px-6">
@@ -49,7 +60,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <MultiSelect label="Формат" value={filters.format} options={smartOptions.formats} onChange={handleFormatChange} />
             <MultiSelect label="Продавец" value={filters.vendor} options={smartOptions.vendors} onChange={handleVendorChange} />
             <div className="ml-auto flex gap-2">
-              {userRole === 'ADMIN' && <button onClick={() => exportToExcel(reportData)} className="px-6 py-2 bg-teal-600 text-white rounded-lg text-xs font-bold uppercase hover:bg-teal-700 transition-colors">Excel</button>}
+              {userRole === 'ADMIN' && <button onClick={handleExport} disabled={isExporting} className="px-6 py-2 bg-teal-600 text-white rounded-lg text-xs font-bold uppercase hover:bg-teal-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">{isExporting ? 'Экспорт...' : 'Excel'}</button>}
               <button onClick={resetFilters} className="px-4 py-2 text-gray-400 hover:text-gray-600 text-xs font-bold uppercase">Сброс</button>
             </div>
           </div>

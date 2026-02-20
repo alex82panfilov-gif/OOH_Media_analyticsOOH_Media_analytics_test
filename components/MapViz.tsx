@@ -5,6 +5,7 @@ import Supercluster from 'supercluster';
 import { formatNumberRussian } from '../utils/data';
 import { Navigation, MousePointer2, Info } from 'lucide-react';
 import { MapDataItem } from '../types';
+import { useMediaPlanStore } from '../store/useMediaPlanStore';
 
 type ClusterProperties = {
   cluster: true;
@@ -138,6 +139,8 @@ const ClustersLayer = ({
 
 export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const toggleItem = useMediaPlanStore((state) => state.toggleItem);
+  const mediaPlanItems = useMediaPlanStore((state) => state.items);
 
   const surfaceStats = useMemo(() => {
     const stats = new Map<string, MapDataItem>();
@@ -164,6 +167,9 @@ export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
   }, [data]);
 
   const currentSelection = selectedAddress ? surfaceStats.get(selectedAddress) : null;
+  const isInPlan = currentSelection
+    ? mediaPlanItems.some((item) => item.id === `map:${currentSelection.address}`)
+    : false;
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[650px]">
@@ -231,7 +237,22 @@ export const MapViz: React.FC<{ data: MapDataItem[] }> = ({ data }) => {
               </div>
             </div>
 
-            <div className="p-8 pt-0 mt-auto">
+            <div className="p-8 pt-0 mt-auto space-y-3">
+              <button
+                onClick={() => toggleItem({
+                  id: `map:${currentSelection.address}`,
+                  title: currentSelection.address,
+                  city: currentSelection.city,
+                  format: currentSelection.format,
+                  period: 'Средний по фильтру',
+                  grp: currentSelection.avgGrp,
+                  ots: currentSelection.avgOts,
+                  source: 'map',
+                })}
+                className={`w-full py-4 rounded-2xl text-xs font-black uppercase transition-all ${isInPlan ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+              >
+                {isInPlan ? 'Убрать из плана' : 'В план +'}
+              </button>
               <button onClick={() => window.open(`https://yandex.ru/maps/?text=${currentSelection.lat},${currentSelection.lng}`, '_blank')} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase flex items-center justify-center gap-3 hover:bg-slate-800 transition-all">
                 <Navigation size={16} fill="white" /> Смотреть панораму
               </button>

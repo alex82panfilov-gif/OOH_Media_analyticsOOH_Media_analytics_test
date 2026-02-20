@@ -2,6 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { formatNumberRussian } from '../utils/data';
 import { ReportDataItem } from '../types';
+import { useMediaPlanStore } from '../store/useMediaPlanStore';
 
 const STORAGE_KEY = 'report-table-visible-columns';
 const DEFAULT_VISIBLE_COLUMNS = {
@@ -14,6 +15,8 @@ const DEFAULT_VISIBLE_COLUMNS = {
 export const PivotReports: React.FC<{ data: ReportDataItem[] }> = ({ data }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const [visibleColumns, setVisibleColumns] = React.useState(DEFAULT_VISIBLE_COLUMNS);
+  const toggleItem = useMediaPlanStore((state) => state.toggleItem);
+  const mediaPlanItems = useMediaPlanStore((state) => state.items);
 
   React.useEffect(() => {
     try {
@@ -93,17 +96,38 @@ export const PivotReports: React.FC<{ data: ReportDataItem[] }> = ({ data }) => 
                 {visibleColumns.format && <th className="px-4 py-3 text-left">Формат</th>}
                 {visibleColumns.period && <th className="px-4 py-3 text-center">Период</th>}
                 {visibleColumns.avgGrp && <th className="px-4 py-3 text-right">Средний GRP</th>}
+                <th className="px-4 py-3 text-right">В план</th>
               </tr>
             </thead>
             <tbody style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const row = data[virtualRow.index];
+                const rowId = `report:${row.city}:${row.format}:${row.year}:${row.month}`;
+                const inPlan = mediaPlanItems.some((item) => item.id === rowId);
                 return (
                   <tr key={virtualRow.key} className="absolute top-0 left-0 w-full flex items-center border-b border-gray-50 hover:bg-gray-50" style={{ height: '40px', transform: `translateY(${virtualRow.start}px)` }}>
                     {visibleColumns.city && <td className="px-4 flex-1">{row.city}</td>}
                     {visibleColumns.format && <td className="px-4 flex-1 text-gray-400">{row.format}</td>}
                     {visibleColumns.period && <td className="px-4 flex-1 text-center">{row.month} {row.year}</td>}
                     {visibleColumns.avgGrp && <td className="px-4 flex-1 text-right font-black text-teal-600">{formatNumberRussian(row.avgGrp)}</td>}
+                    <td className="px-4 flex-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => toggleItem({
+                          id: rowId,
+                          title: `${row.city} / ${row.format}`,
+                          city: row.city,
+                          format: row.format,
+                          period: `${row.month} ${row.year}`,
+                          grp: row.avgGrp,
+                          ots: 0,
+                          source: 'report',
+                        })}
+                        className={`px-2 py-1 rounded border text-[10px] font-bold ${inPlan ? 'bg-red-50 border-red-200 text-red-700' : 'bg-teal-50 border-teal-200 text-teal-700'}`}
+                      >
+                        {inPlan ? '−' : '+ В план'}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
